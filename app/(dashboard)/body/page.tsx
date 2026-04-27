@@ -49,10 +49,13 @@ export default function BodyPage() {
         fetch('/api/body/sleep'),
         fetch(`/api/body/water?date=${todayString()}`),
       ]);
-      setMeasurements(await mRes.json());
-      setWorkouts(await wRes.json());
-      setSleepLogs(await sRes.json());
+      const mData = await mRes.json();
+      const wData = await wRes.json();
+      const sData = await sRes.json();
       const waterData = await waterRes.json();
+      setMeasurements(Array.isArray(mData) ? mData : []);
+      setWorkouts(Array.isArray(wData) ? wData : []);
+      setSleepLogs(Array.isArray(sData) ? sData : []);
       setWaterToday(waterData.totalMl || 0);
     } catch (err) {
       console.error(err);
@@ -193,12 +196,12 @@ export default function BodyPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 bg-[#12121A] p-1 rounded-xl border border-[#1E1E2E] w-fit">
+        <div className="flex gap-2 bg-[#12121A] p-1 rounded-xl border border-[#1E1E2E] w-full sm:w-fit">
           {(['measurements', 'workouts', 'sleep'] as Tab[]).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors capitalize ${
                 tab === t ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -472,11 +475,11 @@ export default function BodyPage() {
           <div>
             <label className="text-xs text-gray-400 mb-2 block">Exercises</label>
             {wForm.exercises.map((ex, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2 mb-2">
-                <input placeholder="Exercise" value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)} className={inputClass} />
+              <div key={i} className="grid grid-cols-2 gap-2 mb-2 sm:grid-cols-4">
+                <input placeholder="Exercise" value={ex.name} onChange={e => updateExercise(i, 'name', e.target.value)} className={`${inputClass} col-span-2 sm:col-span-1`} />
                 <input placeholder="Sets" type="number" value={ex.sets} onChange={e => updateExercise(i, 'sets', e.target.value)} className={inputClass} />
                 <input placeholder="Reps" type="number" value={ex.reps} onChange={e => updateExercise(i, 'reps', e.target.value)} className={inputClass} />
-                <input placeholder="Weight" type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} className={inputClass} />
+                <input placeholder="kg" type="number" value={ex.weight} onChange={e => updateExercise(i, 'weight', e.target.value)} className={inputClass} />
               </div>
             ))}
             <button onClick={addExerciseRow} className="text-purple-400 text-sm hover:text-purple-300">+ Add exercise</button>

@@ -38,7 +38,8 @@ export default function WinsPage() {
   const fetchWins = useCallback(async () => {
     try {
       const res = await fetch('/api/wins');
-      setWins(await res.json());
+      const data = await res.json();
+      setWins(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {

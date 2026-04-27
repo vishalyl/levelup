@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -9,6 +9,18 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "LEVELUP — Personal Life Dashboard",
   description: "Your gamified personal operating system",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#0A0A0F',
 };
 
 export default function RootLayout({

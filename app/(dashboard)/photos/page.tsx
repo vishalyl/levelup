@@ -35,7 +35,8 @@ export default function PhotosPage() {
   const fetchPhotos = useCallback(async () => {
     try {
       const res = await fetch('/api/photos');
-      setPhotos(await res.json());
+      const data = await res.json();
+      setPhotos(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {

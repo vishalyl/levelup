@@ -26,9 +26,11 @@ export default function CharacterPage() {
         fetch('/api/badges'),
         fetch('/api/xp'),
       ]);
-      setStats(await statsRes.json());
-      setBadges(await badgesRes.json());
+      const statsData = await statsRes.json();
+      const badgesData = await badgesRes.json();
       const xpData = await xpRes.json();
+      setStats(!Array.isArray(statsData) ? statsData : { str: 0, vit: 0, int: 0, wil: 0, agi: 0 });
+      setBadges(Array.isArray(badgesData) ? badgesData : []);
       setXpEvents(xpData.allEvents || []);
     } catch (err) {
       console.error(err);
@@ -60,9 +62,9 @@ export default function CharacterPage() {
     <PageWrapper>
       <div className="space-y-6">
         {/* Hero */}
-        <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-8 card-hover text-center">
+        <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-5 sm:p-8 card-hover text-center">
           {/* Geometric Avatar */}
-          <div className="mx-auto w-32 h-32 relative mb-6">
+          <div className="mx-auto w-24 h-24 sm:w-32 sm:h-32 relative mb-4 sm:mb-6">
             <svg viewBox="0 0 100 100" className="w-full h-full">
               {/* Base circle */}
               <circle cx="50" cy="50" r="45" fill="none" stroke="#7C3AED" strokeWidth="2" opacity="0.5" />
@@ -95,8 +97,8 @@ export default function CharacterPage() {
             </svg>
           </div>
 
-          <h1 className="text-3xl font-bold text-white">{user?.character_name || 'Hero'}</h1>
-          <p className="text-xl text-purple-300 mt-1">{progress.title}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">{user?.character_name || 'Hero'}</h1>
+          <p className="text-base sm:text-xl text-purple-300 mt-1">{progress.title}</p>
 
           {/* XP Bar */}
           <div className="max-w-md mx-auto mt-6">

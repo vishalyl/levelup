@@ -9,7 +9,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-dot-pattern">
       <Sidebar xpProgress={progress} />
-      <main className="md:ml-64 min-h-screen pb-20 md:pb-0">
+      <main className="md:ml-64 min-h-screen pb-24 md:pb-0">
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
           {children}
         </div>

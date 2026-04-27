@@ -7,24 +7,18 @@ const DEFAULT_CLERK_ID = 'default_user';
 export async function getOrCreateUser() {
   const supabase = getServiceSupabase();
 
-  // Try to find existing user
-  const { data: existingUser } = await supabase
+  // Upsert to handle race conditions when multiple requests hit simultaneously
+  const { data, error } = await supabase
     .from('users')
-    .select('*')
-    .eq('clerk_id', DEFAULT_CLERK_ID)
-    .single();
-
-  if (existingUser) return existingUser;
-
-  // Create new user
-  const { data: newUser, error } = await supabase
-    .from('users')
-    .insert({ clerk_id: DEFAULT_CLERK_ID, character_name: 'Hero' })
+    .upsert(
+      { clerk_id: DEFAULT_CLERK_ID, character_name: 'Hero' },
+      { onConflict: 'clerk_id', ignoreDuplicates: false }
+    )
     .select()
     .single();
 
   if (error) throw error;
-  return newUser;
+  return data;
 }
 
 export async function getUserId(): Promise<string> {

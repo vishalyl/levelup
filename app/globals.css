@@ -116,3 +116,12 @@ body {
   stroke: #7C3AED;
   stroke-width: 1;
 }
+
+/* Mobile touch improvements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, select, textarea, button, a {
+  touch-action: manipulation;
+}

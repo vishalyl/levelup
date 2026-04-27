@@ -10,6 +10,8 @@ export const XP_VALUES = {
   BUCKET_LIST_DONE: 100,
   STREAK_7_DAY: 75,
   STREAK_30_DAY: 300,
+  TASK_COMPLETE: 25,
+  TASK_COMPLETE_ONTIME: 10,
 } as const;
 
 export type XPReason =
@@ -23,7 +25,9 @@ export type XPReason =
   | 'wins_entry'
   | 'bucket_list_done'
   | 'streak_7_day'
-  | 'streak_30_day';
+  | 'streak_30_day'
+  | 'task_complete'
+  | 'task_complete_ontime';
 
 export function getXPAmount(reason: XPReason): number {
   const map: Record<XPReason, number> = {
@@ -38,6 +42,8 @@ export function getXPAmount(reason: XPReason): number {
     bucket_list_done: XP_VALUES.BUCKET_LIST_DONE,
     streak_7_day: XP_VALUES.STREAK_7_DAY,
     streak_30_day: XP_VALUES.STREAK_30_DAY,
+    task_complete: XP_VALUES.TASK_COMPLETE,
+    task_complete_ontime: XP_VALUES.TASK_COMPLETE_ONTIME,
   };
   return map[reason];
 }
@@ -55,6 +61,8 @@ export function getXPLabel(reason: string): string {
     bucket_list_done: 'Bucket List Item',
     streak_7_day: '7-Day Streak!',
     streak_30_day: '30-Day Streak!',
+    task_complete: 'Task Complete',
+    task_complete_ontime: 'On-Time Bonus!',
   };
   return labels[reason] || reason;
 }

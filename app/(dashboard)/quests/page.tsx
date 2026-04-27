@@ -31,7 +31,8 @@ export default function QuestsPage() {
   const fetchQuests = useCallback(async () => {
     try {
       const res = await fetch('/api/quests');
-      setQuests(await res.json());
+      const data = await res.json();
+      setQuests(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,7 +67,8 @@ export default function QuestsPage() {
       setAddMilestoneTitle('');
       await fetchQuests();
       // Re-select quest with updated data
-      const updated = (await (await fetch('/api/quests')).json()) as Quest[];
+      const updatedRaw = await (await fetch('/api/quests')).json();
+      const updated: Quest[] = Array.isArray(updatedRaw) ? updatedRaw : [];
       setSelectedQuest(updated.find(q => q.id === selectedQuest.id) || null);
     }
   };
@@ -82,7 +84,8 @@ export default function QuestsPage() {
         await awardXP('quest_milestone');
       }
       await fetchQuests();
-      const updated = (await (await fetch('/api/quests')).json()) as Quest[];
+      const updatedRaw2 = await (await fetch('/api/quests')).json();
+      const updated: Quest[] = Array.isArray(updatedRaw2) ? updatedRaw2 : [];
       const updatedQuest = updated.find(q => q.id === selectedQuest?.id);
       setSelectedQuest(updatedQuest || null);
 

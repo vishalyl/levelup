@@ -3,16 +3,18 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Zap, Trophy, Flame, Calendar, TrendingUp, Star, Dumbbell,
+  Zap, Trophy, Flame, Calendar, TrendingUp, Star, Bell,
 } from 'lucide-react';
 import { useApp } from '@/components/Providers';
 import StatBar from '@/components/StatBar';
 import PageWrapper from '@/components/PageWrapper';
 import { CardSkeleton } from '@/components/LoadingSkeleton';
+import GoalsSection from '@/components/GoalsSection';
+import UpcomingItems from '@/components/UpcomingItems';
 import { getGreeting, formatDate, todayString, getMoodEmoji } from '@/lib/utils';
 import { getXPLabel } from '@/lib/xp';
 import { format } from 'date-fns';
-import type { CharacterStats, Habit, HabitLog, Quest, JournalEntry, Win } from '@/types';
+import type { CharacterStats, Habit, HabitLog, Quest, JournalEntry, Win, Task } from '@/types';
 
 export default function DashboardPage() {
   const { user, userLoading, progress, recentEvents } = useApp();
@@ -22,30 +24,39 @@ export default function DashboardPage() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [wins, setWins] = useState<Win[]>([]);
   const [onThisDay, setOnThisDay] = useState<JournalEntry[]>([]);
+  const [dueTasks, setDueTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const { awardXP } = useApp();
 
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, habitsRes, logsRes, questsRes, winsRes, journalRes] = await Promise.all([
+        const [statsRes, habitsRes, logsRes, questsRes, winsRes, journalRes, tasksRes] = await Promise.all([
           fetch('/api/stats'),
           fetch('/api/habits'),
           fetch(`/api/habits/log?start_date=${todayString()}&end_date=${todayString()}`),
           fetch('/api/quests'),
           fetch('/api/wins'),
           fetch('/api/journal'),
+          fetch('/api/tasks'),
         ]);
 
-        setStats(await statsRes.json());
+        const statsData = await statsRes.json();
         const allHabits = await habitsRes.json();
-        setHabits(allHabits.filter((h: Habit) => !h.is_archived));
-        setTodayLogs(await logsRes.json());
-        setQuests(await questsRes.json());
-        setWins(await winsRes.json());
+        const logsData = await logsRes.json();
+        const questsData = await questsRes.json();
+        const winsData = await winsRes.json();
+        const entriesData = await journalRes.json();
+        const tasksData = await tasksRes.json();
+
+        setStats(!Array.isArray(statsData) ? statsData : { str: 0, vit: 0, int: 0, wil: 0, agi: 0 });
+        setHabits(Array.isArray(allHabits) ? allHabits.filter((h: Habit) => !h.is_archived) : []);
+        setTodayLogs(Array.isArray(logsData) ? logsData : []);
+        setQuests(Array.isArray(questsData) ? questsData : []);
+        setWins(Array.isArray(winsData) ? winsData : []);
 
         // On this day entries
-        const entries: JournalEntry[] = await journalRes.json();
+        const entries: JournalEntry[] = Array.isArray(entriesData) ? entriesData : [];
         const today = format(new Date(), 'MM-dd');
         const thisYear = format(new Date(), 'yyyy');
         setOnThisDay(entries.filter(e => {
@@ -53,6 +64,8 @@ export default function DashboardPage() {
           const entryYear = format(new Date(e.date), 'yyyy');
           return entryDate === today && entryYear !== thisYear;
         }));
+        const allTasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
+        setDueTasks(allTasks.filter(t => t.next_due_at <= todayString()));
       } catch (err) {
         console.error('Dashboard load error:', err);
       } finally {
@@ -111,12 +124,15 @@ export default function DashboardPage() {
   return (
     <PageWrapper>
       <div className="space-y-6">
+        {/* Goals Section */}
+        <GoalsSection />
+
         {/* Hero Section */}
-        <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover">
+        <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-4 sm:p-6 card-hover">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <p className="text-gray-400 text-sm">{getGreeting()}</p>
-              <h1 className="text-3xl font-bold text-white mt-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">
                 {user?.character_name || 'Hero'}
               </h1>
               <div className="flex items-center gap-2 mt-2">
@@ -148,7 +164,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Character Stats */}
-          <div className="grid grid-cols-5 gap-3 mt-6">
+          <div className="grid grid-cols-1 gap-2 mt-4 sm:grid-cols-5 sm:gap-3 sm:mt-6">
             <StatBar label="STR" value={stats.str} color="#EF4444" />
             <StatBar label="VIT" value={stats.vit} color="#10B981" />
             <StatBar label="INT" value={stats.int} color="#3B82F6" />
@@ -156,6 +172,9 @@ export default function DashboardPage() {
             <StatBar label="AGI" value={stats.agi} color="#06B6D4" />
           </div>
         </div>
+
+        {/* Upcoming To-Do Section */}
+        <UpcomingItems />
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -274,6 +293,32 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Tasks Due */}
+          <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-yellow-400" />
+              Tasks Due
+              {dueTasks.length > 0 && (
+                <span className="ml-auto w-6 h-6 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold">
+                  {dueTasks.length}
+                </span>
+              )}
+            </h3>
+            {dueTasks.length === 0 ? (
+              <p className="text-gray-500 text-sm">All caught up! No tasks due.</p>
+            ) : (
+              <div className="space-y-2">
+                {dueTasks.slice(0, 5).map(task => (
+                  <div key={task.id} className="flex items-center gap-3 px-3 py-2 bg-[#1E1E2E]/50 rounded-lg">
+                    <span className="text-lg">{task.emoji}</span>
+                    <span className="text-gray-300 text-sm flex-1">{task.title}</span>
+                  </div>
+                ))}
+                {dueTasks.length > 5 && <p className="text-gray-600 text-xs">+{dueTasks.length - 5} more in Habits → Tasks</p>}
               </div>
             )}
           </div>

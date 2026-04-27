@@ -197,9 +197,28 @@ export interface BadgeDefinition {
   hidden?: boolean;
 }
 
+export interface Task {
+  id: string;
+  user_id: string;
+  title: string;
+  emoji: string;
+  interval_days: number;
+  next_due_at: string;
+  last_completed_at: string | null;
+  snooze_count: number;
+  created_at: string;
+}
+
 export interface MeasurementTarget {
   id: string;
   user_id: string;
   measurement_type: string;
   target_value: number;
+}
+
+export interface Reward {
+  id: string;
+  title: string;
+  milestone: number;
+  claimed: boolean;
 }

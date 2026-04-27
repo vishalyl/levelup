@@ -57,7 +57,8 @@ export default function JournalPage() {
       if (searchQuery) url += `search=${encodeURIComponent(searchQuery)}&`;
       if (moodFilter) url += `mood=${moodFilter}&`;
       const res = await fetch(url);
-      setEntries(await res.json());
+      const data = await res.json();
+      setEntries(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -201,14 +202,14 @@ export default function JournalPage() {
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
-                className="text-gray-400 hover:text-white"
+                className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-[#1E1E2E] transition-colors"
               >
                 ←
               </button>
               <h3 className="text-white font-semibold">{format(calendarMonth, 'MMMM yyyy')}</h3>
               <button
                 onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
-                className="text-gray-400 hover:text-white"
+                className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-[#1E1E2E] transition-colors"
               >
                 →
               </button>
@@ -252,7 +253,7 @@ export default function JournalPage() {
       {/* Create Entry Modal */}
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Journal Entry" maxWidth="max-w-xl">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="text-sm text-gray-400 mb-1 block">Date</label>
               <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className={inputClass} />

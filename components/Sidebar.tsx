@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -18,11 +18,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  Flag,
+  Menu,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/goals', label: 'Goals', icon: Flag },
   { href: '/habits', label: 'Habits', icon: CheckSquare },
   { href: '/body', label: 'Body & Health', icon: Heart },
   { href: '/quests', label: 'Quests', icon: Target },
@@ -46,7 +49,10 @@ interface SidebarProps {
 
 export default function Sidebar({ xpProgress }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const pathname = usePathname();
+
+  const primaryNavItems = navItems.slice(0, 4);
 
   return (
     <>
@@ -113,34 +119,93 @@ export default function Sidebar({ xpProgress }: SidebarProps) {
       </motion.aside>
 
       {/* Mobile Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#12121A] border-t border-[#1E1E2E] z-40 flex justify-around py-2 px-1">
-        {navItems.slice(0, 5).map((item) => {
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#12121A]/95 backdrop-blur-sm border-t border-[#1E1E2E] z-40 flex justify-around px-1">
+        {primaryNavItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors',
+                'flex flex-col items-center gap-1 px-3 py-3 rounded-lg transition-colors flex-1 min-w-0',
                 isActive ? 'text-purple-400' : 'text-gray-500'
               )}
             >
-              <item.icon size={20} />
-              <span className="text-[10px]">{item.label}</span>
+              <item.icon size={22} />
+              <span className="text-[11px] font-medium truncate">{item.label}</span>
             </Link>
           );
         })}
-        <Link
-          href="/character"
+        <button
+          onClick={() => setShowMenu(true)}
           className={cn(
-            'flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors',
-            pathname === '/character' ? 'text-purple-400' : 'text-gray-500'
+            'flex flex-col items-center gap-1 px-3 py-3 rounded-lg transition-colors flex-1 min-w-0',
+            showMenu ? 'text-purple-400' : 'text-gray-500'
           )}
         >
-          <User size={20} />
-          <span className="text-[10px]">More</span>
-        </Link>
+          <Menu size={22} />
+          <span className="text-[11px] font-medium">Menu</span>
+        </button>
       </nav>
+
+      {/* Full Nav Sheet */}
+      <AnimatePresence>
+        {showMenu && (
+          <div className="md:hidden fixed inset-0 z-50">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70"
+              onClick={() => setShowMenu(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="absolute bottom-0 left-0 right-0 bg-[#12121A] border-t border-[#1E1E2E] rounded-t-2xl"
+            >
+              {xpProgress && (
+                <div className="px-6 pt-5 pb-3 border-b border-[#1E1E2E]">
+                  <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+                    <span>Lvl {xpProgress.level} · {xpProgress.title}</span>
+                    <span>{Math.round(xpProgress.progress)}%</span>
+                  </div>
+                  <div className="h-2 bg-[#1E1E2E] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all duration-500"
+                      style={{ width: `${xpProgress.progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-4 gap-2 p-4 pb-2">
+                {navItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setShowMenu(false)}
+                      className={cn(
+                        'flex flex-col items-center gap-2 p-3 rounded-xl transition-all',
+                        isActive
+                          ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                          : 'text-gray-400 hover:bg-[#1E1E2E] hover:text-white'
+                      )}
+                    >
+                      <item.icon size={22} />
+                      <span className="text-xs text-center leading-tight">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+              <div className="h-6" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

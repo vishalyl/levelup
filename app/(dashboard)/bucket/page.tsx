@@ -42,7 +42,8 @@ export default function BucketPage() {
   const fetchItems = useCallback(async () => {
     try {
       const res = await fetch('/api/bucket');
-      setItems(await res.json());
+      const data = await res.json();
+      setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
