@@ -185,6 +185,23 @@ CREATE TABLE bucket_list (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Goals
+CREATE TABLE goals (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  emoji TEXT NOT NULL,
+  current NUMERIC NOT NULL DEFAULT 0,
+  target NUMERIC NOT NULL,
+  unit TEXT NOT NULL,
+  colorIdx INTEGER NOT NULL DEFAULT 0,
+  subgoals JSONB NOT NULL DEFAULT '[]'::jsonb,
+  rewards JSONB NOT NULL DEFAULT '[]'::jsonb,
+  rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  logs JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- XP events
 CREATE TABLE xp_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -239,6 +256,7 @@ ALTER TABLE journal_photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE progress_photos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bucket_list ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE xp_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE badges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE measurement_targets ENABLE ROW LEVEL SECURITY;
@@ -277,6 +295,7 @@ SELECT create_user_policies('journal_photos');
 SELECT create_user_policies('progress_photos');
 SELECT create_user_policies('wins');
 SELECT create_user_policies('bucket_list');
+SELECT create_user_policies('goals');
 SELECT create_user_policies('xp_events');
 SELECT create_user_policies('badges');
 SELECT create_user_policies('measurement_targets');
