@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   clerk_id TEXT UNIQUE NOT NULL,
   character_name TEXT DEFAULT 'Hero',
@@ -16,7 +16,7 @@ CREATE TABLE users (
 );
 
 -- Habits
-CREATE TABLE habits (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS habits (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE habits (
 );
 
 -- Habit logs
-CREATE TABLE habit_logs (
+CREATE TABLE IF NOT EXISTS habit_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   habit_id UUID REFERENCES habits(id) ON DELETE CASCADE,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -41,7 +41,7 @@ CREATE TABLE habit_logs (
 );
 
 -- Body measurements
-CREATE TABLE body_measurements (
+CREATE TABLE IF NOT EXISTS body_measurements (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE body_measurements (
 );
 
 -- Workouts
-CREATE TABLE workouts (
+CREATE TABLE IF NOT EXISTS workouts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -71,7 +71,7 @@ CREATE TABLE workouts (
 );
 
 -- Workout exercises
-CREATE TABLE workout_exercises (
+CREATE TABLE IF NOT EXISTS workout_exercises (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   workout_id UUID REFERENCES workouts(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE workout_exercises (
 );
 
 -- Sleep logs
-CREATE TABLE sleep_logs (
+CREATE TABLE IF NOT EXISTS sleep_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -94,7 +94,7 @@ CREATE TABLE sleep_logs (
 );
 
 -- Water logs
-CREATE TABLE water_logs (
+CREATE TABLE IF NOT EXISTS water_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE water_logs (
 );
 
 -- Quests (monthly goals)
-CREATE TABLE quests (
+CREATE TABLE IF NOT EXISTS quests (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE quests (
 );
 
 -- Quest milestones
-CREATE TABLE quest_milestones (
+CREATE TABLE IF NOT EXISTS quest_milestones (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   quest_id UUID REFERENCES quests(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -127,7 +127,7 @@ CREATE TABLE quest_milestones (
 );
 
 -- Journal entries
-CREATE TABLE journal_entries (
+CREATE TABLE IF NOT EXISTS journal_entries (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -139,7 +139,7 @@ CREATE TABLE journal_entries (
 );
 
 -- Journal photos
-CREATE TABLE journal_photos (
+CREATE TABLE IF NOT EXISTS journal_photos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   entry_id UUID REFERENCES journal_entries(id) ON DELETE CASCADE,
   storage_path TEXT NOT NULL,
@@ -147,7 +147,7 @@ CREATE TABLE journal_photos (
 );
 
 -- Progress photos
-CREATE TABLE progress_photos (
+CREATE TABLE IF NOT EXISTS progress_photos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   date DATE NOT NULL,
@@ -159,7 +159,7 @@ CREATE TABLE progress_photos (
 );
 
 -- Wins
-CREATE TABLE wins (
+CREATE TABLE IF NOT EXISTS wins (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -171,7 +171,7 @@ CREATE TABLE wins (
 );
 
 -- Bucket list
-CREATE TABLE bucket_list (
+CREATE TABLE IF NOT EXISTS bucket_list (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE bucket_list (
 );
 
 -- Goals
-CREATE TABLE goals (
+CREATE TABLE IF NOT EXISTS goals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
@@ -203,7 +203,7 @@ CREATE TABLE goals (
 );
 
 -- XP events
-CREATE TABLE xp_events (
+CREATE TABLE IF NOT EXISTS xp_events (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   amount INTEGER NOT NULL,
@@ -212,7 +212,7 @@ CREATE TABLE xp_events (
 );
 
 -- Badges
-CREATE TABLE badges (
+CREATE TABLE IF NOT EXISTS badges (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   badge_key TEXT NOT NULL,
@@ -221,7 +221,7 @@ CREATE TABLE badges (
 );
 
 -- Measurement targets
-CREATE TABLE measurement_targets (
+CREATE TABLE IF NOT EXISTS measurement_targets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   measurement_type TEXT NOT NULL,
@@ -230,7 +230,7 @@ CREATE TABLE measurement_targets (
 );
 
 -- Water daily target
-CREATE TABLE user_settings (
+CREATE TABLE IF NOT EXISTS user_settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
   water_target_ml INTEGER DEFAULT 3000,
@@ -270,14 +270,14 @@ ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 -- for the anon key as a safety net.
 
 -- Users policies
-CREATE POLICY "Users can view own data" ON users FOR SELECT USING (true);
-CREATE POLICY "Users can insert own data" ON users FOR INSERT WITH CHECK (true);
-CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (true);
+CREATE POLICY IF NOT EXISTS "Users can view own data" ON users FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Users can insert own data" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Users can update own data" ON users FOR UPDATE USING (true);
 
 -- Generic policy function for user_id based tables
 CREATE OR REPLACE FUNCTION create_user_policies(table_name TEXT) RETURNS void AS $$
 BEGIN
-  EXECUTE format('CREATE POLICY "Allow all for own rows" ON %I FOR ALL USING (true) WITH CHECK (true)', table_name);
+  EXECUTE format('CREATE POLICY IF NOT EXISTS "Allow all for own rows" ON %I FOR ALL USING (true) WITH CHECK (true)', table_name);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -306,24 +306,24 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('progress-photos', 'progr
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies
-CREATE POLICY "Allow public read" ON storage.objects FOR SELECT USING (bucket_id = 'progress-photos');
-CREATE POLICY "Allow authenticated upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'progress-photos');
-CREATE POLICY "Allow authenticated delete" ON storage.objects FOR DELETE USING (bucket_id = 'progress-photos');
+CREATE POLICY IF NOT EXISTS "Allow public read" ON storage.objects FOR SELECT USING (bucket_id = 'progress-photos');
+CREATE POLICY IF NOT EXISTS "Allow authenticated upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'progress-photos');
+CREATE POLICY IF NOT EXISTS "Allow authenticated delete" ON storage.objects FOR DELETE USING (bucket_id = 'progress-photos');
 
 -- Create storage bucket for journal photos
 INSERT INTO storage.buckets (id, name, public) VALUES ('journal-photos', 'journal-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Allow public read journal" ON storage.objects FOR SELECT USING (bucket_id = 'journal-photos');
-CREATE POLICY "Allow authenticated upload journal" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'journal-photos');
-CREATE POLICY "Allow authenticated delete journal" ON storage.objects FOR DELETE USING (bucket_id = 'journal-photos');
+CREATE POLICY IF NOT EXISTS "Allow public read journal" ON storage.objects FOR SELECT USING (bucket_id = 'journal-photos');
+CREATE POLICY IF NOT EXISTS "Allow authenticated upload journal" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'journal-photos');
+CREATE POLICY IF NOT EXISTS "Allow authenticated delete journal" ON storage.objects FOR DELETE USING (bucket_id = 'journal-photos');
 
 -- Indexes for performance
-CREATE INDEX idx_habit_logs_date ON habit_logs(completed_date);
-CREATE INDEX idx_habit_logs_habit ON habit_logs(habit_id);
-CREATE INDEX idx_xp_events_user ON xp_events(user_id, created_at DESC);
-CREATE INDEX idx_workouts_user_date ON workouts(user_id, date DESC);
-CREATE INDEX idx_journal_entries_user_date ON journal_entries(user_id, date DESC);
-CREATE INDEX idx_body_measurements_user_date ON body_measurements(user_id, date DESC);
-CREATE INDEX idx_wins_user_date ON wins(user_id, date DESC);
-CREATE INDEX idx_badges_user ON badges(user_id);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(completed_date);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON habit_logs(habit_id);
+CREATE INDEX IF NOT EXISTS idx_xp_events_user ON xp_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workouts_user_date ON workouts(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_user_date ON journal_entries(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_body_measurements_user_date ON body_measurements(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_wins_user_date ON wins(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_badges_user ON badges(user_id);
