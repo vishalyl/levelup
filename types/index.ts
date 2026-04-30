@@ -222,3 +222,43 @@ export interface Reward {
   milestone: number;
   claimed: boolean;
 }
+
+export interface GoalSubgoal {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface GoalReward {
+  id: string;
+  title: string;
+  milestone: number;
+  claimed: boolean;
+}
+
+export interface GoalRule {
+  id: string;
+  text: string;
+}
+
+export interface GoalLog {
+  id: string;
+  amount: number;
+  date: string;
+}
+
+export interface Goal {
+  id: string;
+  user_id: string;
+  title: string;
+  emoji: string;
+  current: number;
+  target: number;
+  unit: string;
+  colorIdx: number;
+  subgoals: GoalSubgoal[];
+  rewards: GoalReward[];
+  rules: GoalRule[];
+  logs: GoalLog[];
+  created_at: string;
+}

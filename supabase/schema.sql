@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   clerk_id TEXT UNIQUE NOT NULL,
   character_name TEXT DEFAULT 'Hero',
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS IF NOT EXISTS users (
 );
 
 -- Habits
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS habits (
+CREATE TABLE IF NOT EXISTS habits (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS goals (
   current NUMERIC NOT NULL DEFAULT 0,
   target NUMERIC NOT NULL,
   unit TEXT NOT NULL,
-  colorIdx INTEGER NOT NULL DEFAULT 0,
+  color_idx INTEGER NOT NULL DEFAULT 0,
   subgoals JSONB NOT NULL DEFAULT '[]'::jsonb,
   rewards JSONB NOT NULL DEFAULT '[]'::jsonb,
   rules JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -270,14 +270,18 @@ ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 -- for the anon key as a safety net.
 
 -- Users policies
-CREATE POLICY IF NOT EXISTS "Users can view own data" ON users FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Users can insert own data" ON users FOR INSERT WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "Users can update own data" ON users FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Users can view own data" ON users;
+DROP POLICY IF EXISTS "Users can insert own data" ON users;
+DROP POLICY IF EXISTS "Users can update own data" ON users;
+CREATE POLICY "Users can view own data" ON users FOR SELECT USING (true);
+CREATE POLICY "Users can insert own data" ON users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (true);
 
 -- Generic policy function for user_id based tables
 CREATE OR REPLACE FUNCTION create_user_policies(table_name TEXT) RETURNS void AS $$
 BEGIN
-  EXECUTE format('CREATE POLICY IF NOT EXISTS "Allow all for own rows" ON %I FOR ALL USING (true) WITH CHECK (true)', table_name);
+  EXECUTE format('DROP POLICY IF EXISTS "Allow all for own rows" ON %I', table_name);
+  EXECUTE format('CREATE POLICY "Allow all for own rows" ON %I FOR ALL USING (true) WITH CHECK (true)', table_name);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -306,17 +310,23 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('progress-photos', 'progr
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies
-CREATE POLICY IF NOT EXISTS "Allow public read" ON storage.objects FOR SELECT USING (bucket_id = 'progress-photos');
-CREATE POLICY IF NOT EXISTS "Allow authenticated upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'progress-photos');
-CREATE POLICY IF NOT EXISTS "Allow authenticated delete" ON storage.objects FOR DELETE USING (bucket_id = 'progress-photos');
+DROP POLICY IF EXISTS "Allow public read" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated upload" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated delete" ON storage.objects;
+CREATE POLICY "Allow public read" ON storage.objects FOR SELECT USING (bucket_id = 'progress-photos');
+CREATE POLICY "Allow authenticated upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'progress-photos');
+CREATE POLICY "Allow authenticated delete" ON storage.objects FOR DELETE USING (bucket_id = 'progress-photos');
 
 -- Create storage bucket for journal photos
 INSERT INTO storage.buckets (id, name, public) VALUES ('journal-photos', 'journal-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY IF NOT EXISTS "Allow public read journal" ON storage.objects FOR SELECT USING (bucket_id = 'journal-photos');
-CREATE POLICY IF NOT EXISTS "Allow authenticated upload journal" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'journal-photos');
-CREATE POLICY IF NOT EXISTS "Allow authenticated delete journal" ON storage.objects FOR DELETE USING (bucket_id = 'journal-photos');
+DROP POLICY IF EXISTS "Allow public read journal" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated upload journal" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated delete journal" ON storage.objects;
+CREATE POLICY "Allow public read journal" ON storage.objects FOR SELECT USING (bucket_id = 'journal-photos');
+CREATE POLICY "Allow authenticated upload journal" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'journal-photos');
+CREATE POLICY "Allow authenticated delete journal" ON storage.objects FOR DELETE USING (bucket_id = 'journal-photos');
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON habit_logs(completed_date);

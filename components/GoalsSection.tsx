@@ -56,60 +56,6 @@ const GRADIENTS = [
   { from: '#06B6D4', to: '#6366F1', name: 'Cyber Blue' },
 ];
 
-const STORAGE_KEY = 'levelup_goals_v2';
-
-const SEED_GOALS: Goal[] = [
-  {
-    id: 'seed-g1', title: 'Deep Work', emoji: '⚔️',
-    current: 3, target: 100, unit: 'hrs', colorIdx: 0,
-    subgoals: [
-      { id: 'seed-sg1', title: 'Set up distraction-free workspace', completed: true },
-      { id: 'seed-sg2', title: 'Complete first 10-hour block', completed: false },
-      { id: 'seed-sg3', title: 'Build a daily deep work ritual', completed: false },
-      { id: 'seed-sg4', title: 'Reach 50 hours milestone', completed: false },
-    ],
-    rewards: [],
-    rules: [
-      { id: 'seed-r1', text: 'No phone during deep work sessions' },
-      { id: 'seed-r2', text: 'Minimum 90-minute unbroken blocks' },
-      { id: 'seed-r3', text: 'Log immediately after each session' },
-    ],
-    logs: [
-      { id: 'seed-l1', amount: 1.5, date: new Date(Date.now() - 86400000 * 2).toISOString() },
-      { id: 'seed-l2', amount: 1.5, date: new Date(Date.now() - 86400000).toISOString() },
-    ],
-  },
-  {
-    id: 'seed-g2', title: 'Read Books', emoji: '📚',
-    current: 0, target: 52, unit: 'books', colorIdx: 1,
-    subgoals: [
-      { id: 'seed-sg5', title: 'Read 1 book per week', completed: false },
-      { id: 'seed-sg6', title: 'Mix fiction and non-fiction', completed: false },
-      { id: 'seed-sg7', title: 'Keep a reading journal', completed: false },
-    ],
-    rewards: [],
-    rules: [
-      { id: 'seed-r4', text: 'Read at least 20 pages per day' },
-      { id: 'seed-r5', text: 'No skipping chapters' },
-    ],
-    logs: [],
-  },
-  {
-    id: 'seed-g3', title: 'Run Distance', emoji: '🏃',
-    current: 0, target: 500, unit: 'km', colorIdx: 2,
-    subgoals: [
-      { id: 'seed-sg8', title: 'Run 3x per week consistently', completed: false },
-      { id: 'seed-sg9', title: 'Complete a 5K race', completed: false },
-      { id: 'seed-sg10', title: 'Complete a 10K race', completed: false },
-    ],
-    rewards: [],
-    rules: [
-      { id: 'seed-r6', text: 'Always warm up before running' },
-      { id: 'seed-r7', text: 'Log every single run' },
-    ],
-    logs: [],
-  },
-];
 
 // ─── Ring ─────────────────────────────────────────────────────────────────────
 
@@ -861,9 +807,17 @@ function AddGoalModal({ onClose, onAdd }: {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !target || !unit.trim()) return;
+    console.log('📝 Form submitted - validating...');
+    if (!title.trim() || !target || !unit.trim()) {
+      console.log('❌ Validation failed - missing required fields');
+      return;
+    }
     const targetNum = parseFloat(target);
-    if (isNaN(targetNum) || targetNum <= 0) return;
+    if (isNaN(targetNum) || targetNum <= 0) {
+      console.log('❌ Validation failed - invalid target number:', target);
+      return;
+    }
+    console.log('✓ Validation passed - creating goal object');
     onAdd({
       id: `goal-${Date.now()}`,
       title: title.trim(),
@@ -1042,50 +996,92 @@ export default function GoalsSection({ showAll = false }: { showAll?: boolean })
   const [goals, setGoals] = useState<Goal[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const parsed = stored ? JSON.parse(stored) : SEED_GOALS;
-      const normalized = parsed.map((g: any) => ({
-        ...g,
-        subgoals: g.subgoals || [],
-        rewards: g.rewards || [],
-        rules: g.rules || [],
-        logs: g.logs || [],
-      }));
-      setGoals(normalized);
-    } catch {
-      setGoals(SEED_GOALS);
-    }
-    setLoaded(true);
+    fetchGoals();
   }, []);
 
-  useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(goals));
-  }, [goals, loaded]);
+  async function fetchGoals() {
+    try {
+      console.log('🔄 Fetching goals from Supabase...');
+      // Add cache-busting query param to ensure fresh data
+      const res = await fetch(`/api/goals?t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error('Failed to fetch goals');
+      const data = await res.json();
+      console.log('✅ Goals fetched from Supabase:', data.length, 'goals', data);
+      setGoals(data);
+    } catch (error) {
+      console.error('❌ Error fetching goals:', error);
+      setGoals([]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  // Keep detail modal in sync when goals update
   useEffect(() => {
     if (selectedGoal) {
       const updated = goals.find(g => g.id === selectedGoal.id);
       if (updated && updated !== selectedGoal) setSelectedGoal(updated);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals]);
+  }, [goals, selectedGoal]);
 
-  function updateGoal(updated: Goal) {
-    setGoals(prev => prev.map(g => g.id === updated.id ? updated : g));
+  async function updateGoal(updated: Goal) {
+    try {
+      console.log('📝 Updating goal in Supabase:', updated.id);
+      const res = await fetch('/api/goals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      if (!res.ok) throw new Error('Failed to update goal');
+      const data = await res.json();
+      console.log('✅ Goal updated in Supabase:', data);
+      setGoals(prev => prev.map(g => g.id === updated.id ? data : g));
+      if (selectedGoal?.id === updated.id) setSelectedGoal(data);
+    } catch (error) {
+      console.error('❌ Error updating goal:', error);
+    }
   }
 
-  function deleteGoal(id: string) {
-    setGoals(prev => prev.filter(g => g.id !== id));
+  async function deleteGoal(id: string) {
+    try {
+      console.log('🗑️ Deleting goal from Supabase:', id);
+      const res = await fetch(`/api/goals?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete goal');
+      console.log('✅ Goal deleted from Supabase:', id);
+      setGoals(prev => prev.filter(g => g.id !== id));
+      if (selectedGoal?.id === id) setSelectedGoal(null);
+    } catch (error) {
+      console.error('❌ Error deleting goal:', error);
+    }
   }
 
-  function addGoal(goal: Goal) {
-    setGoals(prev => [...prev, goal]);
-    setShowModal(false);
+  async function addGoal(goal: Goal) {
+    console.log('🎯 Creating new goal:', goal.title);
+    try {
+      console.log('📤 Sending to Supabase via /api/goals');
+      const res = await fetch('/api/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(goal),
+      });
+      console.log('📥 Response status:', res.status);
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('❌ Supabase error:', errorData);
+        throw new Error(errorData.error || `Failed to create goal: ${res.status}`);
+      }
+      const data = await res.json();
+      console.log('✅ Goal saved to Supabase:', data);
+      setGoals(prev => [...prev, data]);
+      setShowModal(false);
+    } catch (error) {
+      console.error('❌ Error creating goal:', error);
+      alert(`Failed to add goal: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   const displayed = showAll ? goals : goals.slice(0, 3);

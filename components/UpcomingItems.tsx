@@ -4,16 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Calendar, Target, Flag, Clock } from 'lucide-react';
 import Link from 'next/link';
-import type { Habit, Task } from '@/types';
-
-interface Goal {
-  id: string;
-  title: string;
-  emoji: string;
-  current: number;
-  target: number;
-  unit: string;
-}
+import type { Habit, Task, Goal } from '@/types';
 
 interface UpcomingItem {
   id: string;
@@ -24,8 +15,6 @@ interface UpcomingItem {
   progress?: number;
   href: string;
 }
-
-const STORAGE_KEY = 'levelup_goals_v2';
 
 export default function UpcomingItems() {
   const [items, setItems] = useState<UpcomingItem[]>([]);
@@ -48,12 +37,12 @@ export default function UpcomingItems() {
         const logsRes = await fetch(`/api/habits/log?start_date=${today}&end_date=${today}`);
         const todayLogs = logsRes.ok ? await logsRes.json() : [];
 
-        // Load goals from localStorage
+        // Fetch goals from Supabase
         let goals: Goal[] = [];
         try {
-          const stored = localStorage.getItem(STORAGE_KEY);
-          const parsed = stored ? JSON.parse(stored) : [];
-          goals = parsed.filter((g: any) => g.current < g.target).slice(0, 3);
+          const goalsRes = await fetch('/api/goals');
+          const allGoals = goalsRes.ok ? await goalsRes.json() : [];
+          goals = allGoals.filter((g: Goal) => g.current < g.target).slice(0, 3);
         } catch {
           // Goals load failed, continue without them
         }
