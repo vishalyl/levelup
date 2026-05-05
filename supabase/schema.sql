@@ -47,14 +47,20 @@ CREATE TABLE IF NOT EXISTS body_measurements (
   date DATE NOT NULL,
   weight NUMERIC,
   body_fat NUMERIC,
+  tummy NUMERIC,
   waist NUMERIC,
   chest NUMERIC,
-  left_arm NUMERIC,
-  right_arm NUMERIC,
-  hips NUMERIC,
+  neck NUMERIC,
+  shoulder NUMERIC,
+  left_biceps NUMERIC,
+  right_biceps NUMERIC,
+  left_forearm NUMERIC,
+  right_forearm NUMERIC,
   left_thigh NUMERIC,
   right_thigh NUMERIC,
-  neck NUMERIC,
+  left_calf NUMERIC,
+  right_calf NUMERIC,
+  hips NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -112,7 +118,11 @@ CREATE TABLE IF NOT EXISTS quests (
   description TEXT,
   color TEXT DEFAULT 'linear-gradient(135deg, #7C3AED, #06B6D4)',
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned')),
+  frequency TEXT DEFAULT 'one-time' CHECK (frequency IN ('one-time', 'weekly', 'monthly', 'partner')),
+  due_date DATE,
+  prerequisites JSONB DEFAULT '[]'::jsonb,
   completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -135,6 +145,9 @@ CREATE TABLE IF NOT EXISTS journal_entries (
   mood TEXT CHECK (mood IN ('amazing', 'good', 'okay', 'rough', 'terrible')),
   content TEXT,
   tags TEXT[] DEFAULT '{}',
+  template_type TEXT DEFAULT 'free' CHECK (template_type IN ('free', 'gratitude', 'reflection', 'goals')),
+  word_count INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

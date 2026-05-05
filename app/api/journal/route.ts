@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase';
 import { getUserId } from '@/lib/auth';
 
+const computeWordCount = (text: string | null | undefined): number => {
+  if (!text) return 0;
+  return text.trim().split(/\s+/).filter(Boolean).length;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getUserId();
@@ -13,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('journal_entries')
-      .select('*')
+      .select('*, photos:journal_photos(*)')
       .eq('user_id', userId);
 
     if (mood) query = query.eq('mood', mood);
@@ -45,8 +50,10 @@ export async function POST(request: NextRequest) {
         mood: body.mood,
         content: body.content,
         tags: body.tags || [],
+        template_type: body.template_type || 'free',
+        word_count: computeWordCount(body.content),
       })
-      .select()
+      .select('*, photos:journal_photos(*)')
       .single();
 
     if (error) throw error;
@@ -59,19 +66,29 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const userId = await getUserId();
     const body = await request.json();
     const supabase = getServiceSupabase();
 
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.mood !== undefined) updateData.mood = body.mood;
+    if (body.content !== undefined) {
+      updateData.content = body.content;
+      updateData.word_count = computeWordCount(body.content);
+    }
+    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.template_type !== undefined) updateData.template_type = body.template_type;
+
     const { data, error } = await supabase
       .from('journal_entries')
-      .update({
-        title: body.title,
-        mood: body.mood,
-        content: body.content,
-        tags: body.tags,
-      })
+      .update(updateData)
       .eq('id', body.id)
-      .select()
+      .eq('user_id', userId)
+      .select('*, photos:journal_photos(*)')
       .single();
 
     if (error) throw error;

@@ -29,11 +29,18 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const supabase = getServiceSupabase();
 
+    const updateData: Record<string, unknown> = {};
+
+    if (body.completed !== undefined) {
+      updateData.completed_at = body.completed ? new Date().toISOString() : null;
+    }
+
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.xp_reward !== undefined) updateData.xp_reward = body.xp_reward;
+
     const { data, error } = await supabase
       .from('quest_milestones')
-      .update({
-        completed_at: body.completed ? new Date().toISOString() : null,
-      })
+      .update(updateData)
       .eq('id', body.id)
       .select()
       .single();
@@ -43,5 +50,28 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Error updating milestone:', error);
     return NextResponse.json({ error: 'Failed to update milestone' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const milestoneId = searchParams.get('id');
+    const supabase = getServiceSupabase();
+
+    if (!milestoneId) {
+      return NextResponse.json({ error: 'Milestone ID required' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('quest_milestones')
+      .delete()
+      .eq('id', milestoneId);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting milestone:', error);
+    return NextResponse.json({ error: 'Failed to delete milestone' }, { status: 500 });
   }
 }

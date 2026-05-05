@@ -20,6 +20,7 @@ import {
   Zap,
   Flag,
   Menu,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/goals', label: 'Goals', icon: Flag },
   { href: '/habits', label: 'Habits', icon: CheckSquare },
+  { href: '/todo', label: 'To-Do', icon: ClipboardList },
   { href: '/body', label: 'Body & Health', icon: Heart },
   { href: '/quests', label: 'Quests', icon: Target },
   { href: '/journal', label: 'Journal', icon: BookOpen },

@@ -100,6 +100,37 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
     icon: '❓',
     hidden: true,
   },
+  {
+    key: 'first_objective',
+    name: 'First Objective',
+    description: 'Complete your first to-do item',
+    icon: '📌',
+  },
+  {
+    key: 'mission_complete',
+    name: 'Mission Complete',
+    description: 'Clear an entire to-do list in one day',
+    icon: '🎯',
+  },
+  {
+    key: 'speedrunner',
+    name: 'Speedrunner',
+    description: 'Complete 5 to-do items in a single day',
+    icon: '⚡',
+  },
+  {
+    key: 'deadline_warrior',
+    name: 'Deadline Warrior',
+    description: 'Complete 10 items on or before their due date',
+    icon: '🛡️',
+  },
+  {
+    key: 'rescue_ranger',
+    name: '???',
+    description: 'Hidden badge',
+    icon: '❓',
+    hidden: true,
+  },
 ];
 
 // Revealed names for secret badges once unlocked
@@ -118,6 +149,11 @@ export const SECRET_BADGE_REVEALS: Record<string, { name: string; description: s
     name: 'The Machine',
     description: 'Complete all habits for 14 days straight',
     icon: '🤖',
+  },
+  rescue_ranger: {
+    name: 'Rescue Ranger',
+    description: 'Complete an item 3+ days overdue',
+    icon: '🚨',
   },
 };
 

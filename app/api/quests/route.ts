@@ -36,8 +36,11 @@ export async function POST(request: NextRequest) {
         year: body.year,
         description: body.description,
         color: body.color || 'linear-gradient(135deg, #7C3AED, #06B6D4)',
+        frequency: body.frequency || 'one-time',
+        due_date: body.due_date || null,
+        prerequisites: body.prerequisites || [],
       })
-      .select()
+      .select('*, milestones:quest_milestones(*)')
       .single();
 
     if (error) throw error;
@@ -53,16 +56,29 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const supabase = getServiceSupabase();
 
-    const updateData: Record<string, unknown> = { status: body.status };
-    if (body.status === 'completed') {
-      updateData.completed_at = new Date().toISOString();
+    const updateData: Record<string, unknown> = {};
+
+    if (body.status) {
+      updateData.status = body.status;
+      if (body.status === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+      }
     }
+
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.color !== undefined) updateData.color = body.color;
+    if (body.frequency !== undefined) updateData.frequency = body.frequency;
+    if (body.due_date !== undefined) updateData.due_date = body.due_date;
+    if (body.prerequisites !== undefined) updateData.prerequisites = body.prerequisites;
+
+    updateData.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('quests')
       .update(updateData)
       .eq('id', body.id)
-      .select()
+      .select('*, milestones:quest_milestones(*)')
       .single();
 
     if (error) throw error;
@@ -70,5 +86,28 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Error updating quest:', error);
     return NextResponse.json({ error: 'Failed to update quest' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const questId = searchParams.get('id');
+    const supabase = getServiceSupabase();
+
+    if (!questId) {
+      return NextResponse.json({ error: 'Quest ID required' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('quests')
+      .delete()
+      .eq('id', questId);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting quest:', error);
+    return NextResponse.json({ error: 'Failed to delete quest' }, { status: 500 });
   }
 }

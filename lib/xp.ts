@@ -12,6 +12,11 @@ export const XP_VALUES = {
   STREAK_30_DAY: 300,
   TASK_COMPLETE: 25,
   TASK_COMPLETE_ONTIME: 10,
+  TODO_ITEM_COMPLETE: 10,
+  TODO_ITEM_ONTIME: 15,
+  TODO_LIST_CLEARED: 40,
+  TODO_OVERDUE_RESCUED: 20,
+  TODO_SPEEDRUN: 25,
 } as const;
 
 export type XPReason =
@@ -27,7 +32,12 @@ export type XPReason =
   | 'streak_7_day'
   | 'streak_30_day'
   | 'task_complete'
-  | 'task_complete_ontime';
+  | 'task_complete_ontime'
+  | 'todo_item_complete'
+  | 'todo_item_ontime'
+  | 'todo_list_cleared'
+  | 'todo_overdue_rescued'
+  | 'todo_speedrun';
 
 export function getXPAmount(reason: XPReason): number {
   const map: Record<XPReason, number> = {
@@ -44,6 +54,11 @@ export function getXPAmount(reason: XPReason): number {
     streak_30_day: XP_VALUES.STREAK_30_DAY,
     task_complete: XP_VALUES.TASK_COMPLETE,
     task_complete_ontime: XP_VALUES.TASK_COMPLETE_ONTIME,
+    todo_item_complete: XP_VALUES.TODO_ITEM_COMPLETE,
+    todo_item_ontime: XP_VALUES.TODO_ITEM_ONTIME,
+    todo_list_cleared: XP_VALUES.TODO_LIST_CLEARED,
+    todo_overdue_rescued: XP_VALUES.TODO_OVERDUE_RESCUED,
+    todo_speedrun: XP_VALUES.TODO_SPEEDRUN,
   };
   return map[reason];
 }
@@ -63,6 +78,11 @@ export function getXPLabel(reason: string): string {
     streak_30_day: '30-Day Streak!',
     task_complete: 'Task Complete',
     task_complete_ontime: 'On-Time Bonus!',
+    todo_item_complete: 'Objective Complete!',
+    todo_item_ontime: 'On-Time Bonus!',
+    todo_list_cleared: 'List Cleared!',
+    todo_overdue_rescued: 'Overdue Rescued!',
+    todo_speedrun: 'Speedrun Bonus!',
   };
   return labels[reason] || reason;
 }
