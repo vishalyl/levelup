@@ -14,12 +14,13 @@ import {
   Target,
   Trophy,
   AlertCircle,
+  ClipboardList,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { useApp } from '@/hooks/useApp';
-import { PageWrapper } from '@/components/PageWrapper';
-import { Modal } from '@/components/Modal';
-import { EmptyState } from '@/components/EmptyState';
+import { useApp } from '@/components/Providers';
+import PageWrapper from '@/components/PageWrapper';
+import Modal from '@/components/Modal';
+import EmptyState from '@/components/EmptyState';
 import { todayString } from '@/lib/utils';
 import type { TodoList, TodoItem, TodoUrgency } from '@/types';
 
@@ -268,10 +269,11 @@ export default function TodoPage() {
 
         {lists.length === 0 ? (
           <EmptyState
-            icon={<svg className="w-12 h-12" viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h10a1 1 0 011 1v18a1 1 0 01-1 1H7a1 1 0 01-1-1V3a1 1 0 011-1zm1 2v14h8V4H8z"/></svg>}
+            icon={ClipboardList}
             title="No Objectives Yet"
             description="Create your first mission board to start tracking tasks"
-            cta={{ label: 'Create List', onClick: () => setShowCreateList(true) }}
+            actionLabel="Create List"
+            onAction={() => setShowCreateList(true)}
           />
         ) : (
           <div className="flex gap-4 h-[600px]">
