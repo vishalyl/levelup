@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Target, Check, X, ChevronRight, Trophy, Edit2, Trash2, Users, AlertCircle } from 'lucide-react';
+import { Plus, Target, Check, X, ChevronRight, Trophy, Edit2, Trash2, AlertCircle, RefreshCw, Users } from 'lucide-react';
 import { useApp } from '@/components/Providers';
 import PageWrapper from '@/components/PageWrapper';
 import Modal from '@/components/Modal';
@@ -23,7 +23,7 @@ const COLOR_PRESETS = [
   'linear-gradient(135deg, #6366F1, #3B82F6)',
 ];
 
-const FREQ_LABELS = {
+const FREQ_LABELS: Record<string, string> = {
   'one-time': 'One-time',
   'weekly': 'Weekly',
   'monthly': 'Monthly',
@@ -41,6 +41,26 @@ const calculateDaysUntil = (dueDate: string | null): string | null => {
   return `${diff} days`;
 };
 
+const prereqLabel = (prereq: QuestPrerequisite): string => {
+  if (prereq.type === 'text') return prereq.text || '';
+  if (prereq.type === 'level') return `Reach Level ${prereq.min_level}`;
+  if (prereq.type === 'habit_streak') return `${prereq.min_streak}-day streak${prereq.habit_name ? ` (${prereq.habit_name})` : ''}`;
+  if (prereq.type === 'quest_complete') return `Complete: ${prereq.quest_name || prereq.quest_id}`;
+  return '';
+};
+
+const emptyForm = () => ({
+  name: '',
+  month: new Date().getMonth() + 1,
+  year: new Date().getFullYear(),
+  description: '',
+  color: 'linear-gradient(135deg, #7C3AED, #06B6D4)',
+  frequency: 'one-time' as Quest['frequency'],
+  due_date: null as string | null,
+  prerequisites: [] as QuestPrerequisite[],
+  partner_name: '',
+});
+
 export default function QuestsPage() {
   const { awardXP } = useApp();
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -49,37 +69,36 @@ export default function QuestsPage() {
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [showComplete, setShowComplete] = useState(false);
   const [addMilestoneTitle, setAddMilestoneTitle] = useState('');
+  const [addMilestoneXP, setAddMilestoneXP] = useState(150);
   const [editMode, setEditMode] = useState(false);
   const [showPrereqAdder, setShowPrereqAdder] = useState(false);
   const [expandedAbandonedSection, setExpandedAbandonedSection] = useState(false);
   const [tempPrereq, setTempPrereq] = useState<Partial<QuestPrerequisite>>({ type: 'text' });
+  const [confirmAction, setConfirmAction] = useState<{ type: 'delete' | 'abandon'; id: string } | null>(null);
+  const [form, setForm] = useState(emptyForm());
 
-  const [form, setForm] = useState({
-    name: '',
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    description: '',
-    color: 'linear-gradient(135deg, #7C3AED, #06B6D4)',
-    frequency: 'one-time' as const,
-    due_date: null as string | null,
-    prerequisites: [] as QuestPrerequisite[],
-  });
-
-  const fetchQuests = useCallback(async () => {
+  const fetchQuests = useCallback(async (): Promise<Quest[]> => {
     try {
       const res = await fetch('/api/quests');
       const data = await res.json();
-      setQuests(Array.isArray(data) ? data : []);
+      const list: Quest[] = Array.isArray(data) ? data : [];
+      setQuests(list);
+      return list;
     } catch (err) {
       console.error(err);
+      return [];
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchQuests();
-  }, [fetchQuests]);
+  useEffect(() => { fetchQuests(); }, [fetchQuests]);
+
+  const openCreate = () => {
+    setEditMode(false);
+    setForm(emptyForm());
+    setShowCreate(true);
+  };
 
   const createQuest = async () => {
     if (!form.name.trim()) return;
@@ -90,16 +109,7 @@ export default function QuestsPage() {
     });
     if (res.ok) {
       setShowCreate(false);
-      setForm({
-        name: '',
-        month: new Date().getMonth() + 1,
-        year: new Date().getFullYear(),
-        description: '',
-        color: 'linear-gradient(135deg, #7C3AED, #06B6D4)',
-        frequency: 'one-time',
-        due_date: null,
-        prerequisites: [],
-      });
+      setForm(emptyForm());
       await fetchQuests();
     }
   };
@@ -117,22 +127,21 @@ export default function QuestsPage() {
         frequency: form.frequency,
         due_date: form.due_date,
         prerequisites: form.prerequisites,
+        partner_name: form.partner_name,
       }),
     });
     if (res.ok) {
       setEditMode(false);
-      await fetchQuests();
-      const updated = await (await fetch('/api/quests')).json();
-      const quest = Array.isArray(updated) ? updated.find(q => q.id === selectedQuest.id) : null;
-      setSelectedQuest(quest || null);
+      const updated = await fetchQuests();
+      setSelectedQuest(updated.find(q => q.id === selectedQuest.id) || null);
     }
   };
 
   const deleteQuest = async (questId: string) => {
-    if (!confirm('Delete this quest?')) return;
     const res = await fetch(`/api/quests?id=${questId}`, { method: 'DELETE' });
     if (res.ok) {
       setSelectedQuest(null);
+      setConfirmAction(null);
       await fetchQuests();
     }
   };
@@ -142,24 +151,20 @@ export default function QuestsPage() {
     const res = await fetch('/api/quests/milestones', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quest_id: selectedQuest.id, title: addMilestoneTitle }),
+      body: JSON.stringify({ quest_id: selectedQuest.id, title: addMilestoneTitle, xp_reward: addMilestoneXP }),
     });
     if (res.ok) {
       setAddMilestoneTitle('');
-      await fetchQuests();
-      const updatedRaw = await (await fetch('/api/quests')).json();
-      const updated: Quest[] = Array.isArray(updatedRaw) ? updatedRaw : [];
+      setAddMilestoneXP(150);
+      const updated = await fetchQuests();
       setSelectedQuest(updated.find(q => q.id === selectedQuest.id) || null);
     }
   };
 
   const deleteMilestone = async (milestoneId: string) => {
-    if (!confirm('Delete this milestone?')) return;
     const res = await fetch(`/api/quests/milestones?id=${milestoneId}`, { method: 'DELETE' });
     if (res.ok) {
-      await fetchQuests();
-      const updatedRaw = await (await fetch('/api/quests')).json();
-      const updated: Quest[] = Array.isArray(updatedRaw) ? updatedRaw : [];
+      const updated = await fetchQuests();
       setSelectedQuest(updated.find(q => q.id === selectedQuest?.id) || null);
     }
   };
@@ -170,25 +175,24 @@ export default function QuestsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: milestoneId, completed: !completed }),
     });
-    if (res.ok) {
-      if (!completed) {
-        await awardXP('quest_milestone');
-      }
-      await fetchQuests();
-      const updatedRaw2 = await (await fetch('/api/quests')).json();
-      const updated: Quest[] = Array.isArray(updatedRaw2) ? updatedRaw2 : [];
-      const updatedQuest = updated.find(q => q.id === selectedQuest?.id);
-      setSelectedQuest(updatedQuest || null);
+    if (!res.ok) return;
+    if (!completed) await awardXP('quest_milestone');
 
-      if (updatedQuest?.milestones?.every(m => m.completed_at) && updatedQuest.milestones.length > 0) {
-        setShowComplete(true);
-        confetti({ particleCount: 200, spread: 120, colors: ['#FFD700', '#FFA500', '#7C3AED'] });
-        await fetch('/api/quests', {
+    const updated = await fetchQuests();
+    const updatedQuest = updated.find(q => q.id === selectedQuest?.id);
+    setSelectedQuest(updatedQuest || null);
+
+    if (updatedQuest?.milestones?.every(m => m.completed_at) && (updatedQuest.milestones?.length ?? 0) > 0) {
+      setShowComplete(true);
+      confetti({ particleCount: 200, spread: 120, colors: ['#FFD700', '#FFA500', '#7C3AED'] });
+      await Promise.all([
+        awardXP('quest_complete'),
+        fetch('/api/quests', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: updatedQuest.id, status: 'completed' }),
-        });
-      }
+        }),
+      ]);
     }
   };
 
@@ -199,13 +203,26 @@ export default function QuestsPage() {
       body: JSON.stringify({ id: questId, status: 'abandoned' }),
     });
     setSelectedQuest(null);
+    setConfirmAction(null);
+    await fetchQuests();
+  };
+
+  const reactivateQuest = async (questId: string) => {
+    await fetch('/api/quests', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: questId, status: 'active' }),
+    });
+    setSelectedQuest(null);
     await fetchQuests();
   };
 
   const addPrerequisite = () => {
     if (tempPrereq.type === 'text' && !tempPrereq.text?.trim()) return;
-    const newPrereq = tempPrereq as QuestPrerequisite;
-    setForm({ ...form, prerequisites: [...form.prerequisites, newPrereq] });
+    if (tempPrereq.type === 'level' && !tempPrereq.min_level) return;
+    if (tempPrereq.type === 'habit_streak' && !tempPrereq.min_streak) return;
+    if (tempPrereq.type === 'quest_complete' && !tempPrereq.quest_id) return;
+    setForm({ ...form, prerequisites: [...form.prerequisites, tempPrereq as QuestPrerequisite] });
     setTempPrereq({ type: 'text' });
     setShowPrereqAdder(false);
   };
@@ -228,20 +245,7 @@ export default function QuestsPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-white">Quests</h1>
           <button
-            onClick={() => {
-              setEditMode(false);
-              setForm({
-                name: '',
-                month: new Date().getMonth() + 1,
-                year: new Date().getFullYear(),
-                description: '',
-                color: 'linear-gradient(135deg, #7C3AED, #06B6D4)',
-                frequency: 'one-time',
-                due_date: null,
-                prerequisites: [],
-              });
-              setShowCreate(true);
-            }}
+            onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-white text-sm font-medium transition-colors"
           >
             <Plus size={16} /> New Quest
@@ -254,11 +258,10 @@ export default function QuestsPage() {
             title="No quests yet"
             description="Create your first quest and start conquering your goals."
             actionLabel="Create Quest"
-            onAction={() => setShowCreate(true)}
+            onAction={openCreate}
           />
         ) : (
           <>
-            {/* Active Quests */}
             {activeQuests.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-white mb-3">Active Quests</h2>
@@ -276,6 +279,7 @@ export default function QuestsPage() {
                         onClick={() => {
                           setSelectedQuest(quest);
                           setEditMode(false);
+                          setConfirmAction(null);
                           setForm({
                             name: quest.name,
                             month: quest.month,
@@ -285,44 +289,53 @@ export default function QuestsPage() {
                             frequency: quest.frequency,
                             due_date: quest.due_date,
                             prerequisites: quest.prerequisites || [],
+                            partner_name: quest.partner_name || '',
                           });
                         }}
-                        className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 text-left card-hover w-full"
+                        className="bg-[#12121A] border border-[#1E1E2E] rounded-xl overflow-hidden text-left card-hover w-full"
                         whileHover={{ scale: 1.01 }}
                       >
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-lg font-bold text-white">{quest.name}</h3>
-                          <ChevronRight className="text-gray-500" size={18} />
-                        </div>
-                        {quest.description && (
-                          <p className="text-gray-400 text-sm mb-3">{quest.description}</p>
-                        )}
-                        <div className="flex gap-2 mb-3">
-                          <span className="px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded-md text-xs text-purple-300">
-                            {FREQ_LABELS[quest.frequency]}
-                          </span>
-                          {daysLeft && (
-                            <span className={`px-2 py-1 rounded-md text-xs font-medium ${
-                              daysLeft === 'Overdue' ? 'bg-red-500/20 border border-red-500/30 text-red-300' : 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-300'
-                            }`}>
-                              {daysLeft}
-                            </span>
+                        <div className="h-1" style={{ background: quest.color }} />
+                        <div className="p-6">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-lg font-bold text-white">{quest.name}</h3>
+                            <ChevronRight className="text-gray-500" size={18} />
+                          </div>
+                          {quest.description && (
+                            <p className="text-gray-400 text-sm mb-3 line-clamp-2">{quest.description}</p>
                           )}
-                          {unmetPrereqs > 0 && (
-                            <span className="px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded-md text-xs text-orange-300">
-                              {unmetPrereqs} unmet
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            <span className="px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded-md text-xs text-purple-300">
+                              {FREQ_LABELS[quest.frequency]}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>{done}/{total} milestones</span>
-                          <span>{Math.round(progress)}%</span>
-                        </div>
-                        <div className="h-2 bg-[#1E1E2E] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full transition-all"
-                            style={{ width: `${progress}%` }}
-                          />
+                            {quest.partner_name && (
+                              <span className="px-2 py-1 bg-pink-500/20 border border-pink-500/30 rounded-md text-xs text-pink-300 flex items-center gap-1">
+                                <Users size={10} /> {quest.partner_name}
+                              </span>
+                            )}
+                            {daysLeft && (
+                              <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                                daysLeft === 'Overdue' ? 'bg-red-500/20 border border-red-500/30 text-red-300' : 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-300'
+                              }`}>
+                                {daysLeft}
+                              </span>
+                            )}
+                            {unmetPrereqs > 0 && (
+                              <span className="px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded-md text-xs text-orange-300">
+                                {unmetPrereqs} unmet
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>{done}/{total} milestones</span>
+                            <span>{Math.round(progress)}%</span>
+                          </div>
+                          <div className="h-2 bg-[#1E1E2E] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${progress}%`, background: quest.color }}
+                            />
+                          </div>
                         </div>
                       </motion.button>
                     );
@@ -331,44 +344,53 @@ export default function QuestsPage() {
               </div>
             )}
 
-            {/* Completed Quests */}
             {completedQuests.length > 0 && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-400 mb-3">Completed</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {completedQuests.map(quest => (
-                    <div key={quest.id} className="bg-[#12121A] border border-green-500/20 rounded-xl p-4 opacity-80">
-                      <div className="flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-green-400" />
-                        <h3 className="text-white font-medium">{quest.name}</h3>
+                    <button
+                      key={quest.id}
+                      onClick={() => { setSelectedQuest(quest); setEditMode(false); setConfirmAction(null); }}
+                      className="bg-[#12121A] border border-green-500/20 rounded-xl overflow-hidden opacity-80 hover:opacity-100 transition-opacity text-left w-full"
+                    >
+                      <div className="h-0.5" style={{ background: quest.color }} />
+                      <div className="p-4 flex items-center gap-3">
+                        <Trophy className="w-5 h-5 text-green-400 flex-shrink-0" />
+                        <div>
+                          <h3 className="text-white font-medium">{quest.name}</h3>
+                          <p className="text-gray-500 text-sm">{quest.milestones?.length} milestones completed</p>
+                        </div>
                       </div>
-                      <p className="text-gray-500 text-sm mt-1">
-                        {quest.milestones?.length} milestones completed
-                      </p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Abandoned Quests */}
             {abandonedQuests.length > 0 && (
               <div>
                 <button
                   onClick={() => setExpandedAbandonedSection(!expandedAbandonedSection)}
-                  className="text-lg font-semibold text-gray-400 mb-3 hover:text-gray-300 transition-colors"
+                  className="flex items-center gap-2 text-lg font-semibold text-gray-400 mb-3 hover:text-gray-300 transition-colors"
                 >
                   Abandoned ({abandonedQuests.length})
+                  <ChevronRight size={16} className={`transition-transform ${expandedAbandonedSection ? 'rotate-90' : ''}`} />
                 </button>
                 {expandedAbandonedSection && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {abandonedQuests.map(quest => (
-                      <div key={quest.id} className="bg-[#12121A] border border-gray-600/20 rounded-xl p-4 opacity-60">
-                        <h3 className="text-gray-400 font-medium">{quest.name}</h3>
-                        <p className="text-gray-600 text-sm mt-1">
-                          {quest.milestones?.length} milestones
-                        </p>
-                      </div>
+                      <button
+                        key={quest.id}
+                        onClick={() => { setSelectedQuest(quest); setEditMode(false); setConfirmAction(null); }}
+                        className="bg-[#12121A] border border-gray-600/20 rounded-xl overflow-hidden opacity-60 hover:opacity-80 transition-opacity text-left w-full"
+                      >
+                        <div className="h-0.5 opacity-50" style={{ background: quest.color }} />
+                        <div className="p-4">
+                          <h3 className="text-gray-400 font-medium">{quest.name}</h3>
+                          <p className="text-gray-600 text-sm mt-1">{quest.milestones?.length} milestones</p>
+                        </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -378,19 +400,43 @@ export default function QuestsPage() {
         )}
       </div>
 
-      {/* Create/Edit Quest Modal */}
-      <Modal open={showCreate || !!selectedQuest} onClose={() => {
-        setShowCreate(false);
-        if (editMode) setEditMode(false);
-        setSelectedQuest(null);
-      }} title={editMode ? 'Edit Quest' : selectedQuest ? selectedQuest.name : 'New Quest'}>
+      {/* Quest Modal */}
+      <Modal
+        open={showCreate || !!selectedQuest}
+        onClose={() => {
+          setShowCreate(false);
+          setEditMode(false);
+          setSelectedQuest(null);
+          setConfirmAction(null);
+        }}
+        title={editMode ? 'Edit Quest' : selectedQuest ? selectedQuest.name : 'New Quest'}
+      >
         {selectedQuest && !editMode ? (
+          /* ── Detail View ── */
           <div className="space-y-4">
+            {/* Status badge */}
+            {selectedQuest.status !== 'active' && (
+              <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                selectedQuest.status === 'completed'
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+              }`}>
+                {selectedQuest.status === 'completed' ? <Trophy size={12} /> : <X size={12} />}
+                {selectedQuest.status === 'completed' ? 'Completed' : 'Abandoned'}
+              </div>
+            )}
+
             {selectedQuest.description && (
               <p className="text-gray-400">{selectedQuest.description}</p>
             )}
 
-            {/* Prerequisites Panel */}
+            {selectedQuest.partner_name && (
+              <div className="flex items-center gap-2 text-sm text-pink-300">
+                <Users size={14} /> Partner: {selectedQuest.partner_name}
+              </div>
+            )}
+
+            {/* Prerequisites */}
             {selectedQuest.prerequisites && selectedQuest.prerequisites.length > 0 && (
               <div className="border border-[#2E2E3E] rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-gray-400 mb-3">Prerequisites</h3>
@@ -403,7 +449,7 @@ export default function QuestsPage() {
                         <AlertCircle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
                       )}
                       <span className={prereq.fulfilled ? 'text-green-400' : 'text-orange-400'}>
-                        {prereq.type === 'text' ? prereq.text : `${prereq.type}: ${prereq.min_level || prereq.min_streak}`}
+                        {prereqLabel(prereq)}
                       </span>
                     </div>
                   ))}
@@ -414,85 +460,139 @@ export default function QuestsPage() {
             {/* Milestones */}
             <div>
               <h3 className="text-sm font-semibold text-gray-400 mb-2">Milestones</h3>
-              <div className="space-y-2">
-                {selectedQuest.milestones?.map(milestone => (
-                  <div
-                    key={milestone.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-all group ${
-                      milestone.completed_at
-                        ? 'bg-green-500/10 border border-green-500/30'
-                        : 'bg-[#1E1E2E] border border-transparent hover:border-purple-500/30'
-                    }`}
-                  >
-                    <button
-                      onClick={() => toggleMilestone(milestone.id, !!milestone.completed_at)}
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
-                        milestone.completed_at ? 'bg-green-500 text-white' : 'border border-gray-600 hover:border-purple-500'
+              {(!selectedQuest.milestones || selectedQuest.milestones.length === 0) ? (
+                <p className="text-gray-600 text-sm">No milestones yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {selectedQuest.milestones.map(milestone => (
+                    <div
+                      key={milestone.id}
+                      className={`flex items-center gap-3 p-3 rounded-xl transition-all group ${
+                        milestone.completed_at
+                          ? 'bg-green-500/10 border border-green-500/30'
+                          : 'bg-[#1E1E2E] border border-transparent hover:border-purple-500/30'
                       }`}
                     >
-                      {milestone.completed_at && <Check size={14} />}
-                    </button>
-                    <span className={`flex-1 text-sm ${milestone.completed_at ? 'text-green-400 line-through' : 'text-gray-300'}`}>
-                      {milestone.title}
-                    </span>
-                    <span className="text-xs text-cyan-400">+{milestone.xp_reward} XP</span>
-                    <button
-                      onClick={() => deleteMilestone(milestone.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition-all"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      {selectedQuest.status === 'active' ? (
+                        <button
+                          onClick={() => toggleMilestone(milestone.id, !!milestone.completed_at)}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 transition-all ${
+                            milestone.completed_at ? 'bg-green-500 text-white' : 'border border-gray-600 hover:border-purple-500'
+                          }`}
+                        >
+                          {milestone.completed_at && <Check size={14} />}
+                        </button>
+                      ) : (
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          milestone.completed_at ? 'bg-green-500 text-white' : 'border border-gray-700'
+                        }`}>
+                          {milestone.completed_at && <Check size={14} />}
+                        </div>
+                      )}
+                      <span className={`flex-1 text-sm ${milestone.completed_at ? 'text-green-400 line-through' : 'text-gray-300'}`}>
+                        {milestone.title}
+                      </span>
+                      <span className="text-xs text-cyan-400">+{milestone.xp_reward} XP</span>
+                      {selectedQuest.status === 'active' && (
+                        <button
+                          onClick={() => deleteMilestone(milestone.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-400 transition-all"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Add Milestone */}
-            <div className="flex gap-2">
-              <input
-                value={addMilestoneTitle}
-                onChange={e => setAddMilestoneTitle(e.target.value)}
-                placeholder="Add milestone..."
-                className="flex-1 px-4 py-2 bg-[#1E1E2E] border border-[#2E2E3E] rounded-xl text-white text-sm focus:outline-none focus:border-purple-500"
-                onKeyDown={e => e.key === 'Enter' && addMilestone()}
-              />
-              <button
-                onClick={addMilestone}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-white text-sm transition-colors"
-              >
-                Add
-              </button>
-            </div>
+            {/* Add Milestone — active quests only */}
+            {selectedQuest.status === 'active' && (
+              <div className="flex gap-2">
+                <input
+                  value={addMilestoneTitle}
+                  onChange={e => setAddMilestoneTitle(e.target.value)}
+                  placeholder="Add milestone..."
+                  className="flex-1 px-4 py-2 bg-[#1E1E2E] border border-[#2E2E3E] rounded-xl text-white text-sm focus:outline-none focus:border-purple-500"
+                  onKeyDown={e => e.key === 'Enter' && addMilestone()}
+                />
+                <input
+                  type="number"
+                  value={addMilestoneXP}
+                  onChange={e => setAddMilestoneXP(Math.max(10, parseInt(e.target.value) || 150))}
+                  title="XP reward"
+                  className="w-20 px-3 py-2 bg-[#1E1E2E] border border-[#2E2E3E] rounded-xl text-cyan-400 text-sm focus:outline-none focus:border-purple-500 text-center"
+                  min={10}
+                  max={1000}
+                />
+                <button
+                  onClick={addMilestone}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-xl text-white text-sm transition-colors"
+                >
+                  Add
+                </button>
+              </div>
+            )}
 
             {/* Action Buttons */}
-            <div className="flex gap-2 pt-4 border-t border-[#2E2E3E]">
-              {selectedQuest.status === 'active' && (
-                <>
+            <div className="pt-4 border-t border-[#2E2E3E] space-y-2">
+              {confirmAction ? (
+                <div className="flex items-center gap-3 p-3 bg-red-900/20 border border-red-500/30 rounded-xl">
+                  <span className="flex-1 text-sm text-red-300">
+                    {confirmAction.type === 'delete' ? 'Delete this quest permanently?' : 'Abandon this quest?'}
+                  </span>
                   <button
-                    onClick={() => {
-                      setEditMode(true);
-                    }}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-white text-sm transition-colors"
+                    onClick={() => confirmAction.type === 'delete' ? deleteQuest(confirmAction.id) : abandonQuest(confirmAction.id)}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-xs font-medium transition-colors"
                   >
-                    <Edit2 size={16} /> Edit
+                    Confirm
                   </button>
                   <button
-                    onClick={() => abandonQuest(selectedQuest.id)}
-                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-xl text-white text-sm transition-colors"
+                    onClick={() => setConfirmAction(null)}
+                    className="px-3 py-1.5 bg-[#2E2E3E] hover:bg-[#3E3E4E] rounded-lg text-gray-300 text-xs transition-colors"
                   >
-                    Abandon
+                    Cancel
                   </button>
-                </>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  {selectedQuest.status === 'active' && (
+                    <>
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-white text-sm transition-colors"
+                      >
+                        <Edit2 size={16} /> Edit
+                      </button>
+                      <button
+                        onClick={() => setConfirmAction({ type: 'abandon', id: selectedQuest.id })}
+                        className="flex-1 px-4 py-2 bg-orange-600 hover:bg-orange-500 rounded-xl text-white text-sm transition-colors"
+                      >
+                        Abandon
+                      </button>
+                    </>
+                  )}
+                  {selectedQuest.status === 'abandoned' && (
+                    <button
+                      onClick={() => reactivateQuest(selectedQuest.id)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-white text-sm transition-colors"
+                    >
+                      <RefreshCw size={16} /> Restart Quest
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setConfirmAction({ type: 'delete', id: selectedQuest.id })}
+                    className="px-4 py-2 bg-red-900 hover:bg-red-800 rounded-xl text-white text-sm transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               )}
-              <button
-                onClick={() => deleteQuest(selectedQuest.id)}
-                className="px-4 py-2 bg-red-900 hover:bg-red-800 rounded-xl text-white text-sm transition-colors"
-              >
-                <Trash2 size={16} />
-              </button>
             </div>
           </div>
         ) : (
+          /* ── Create / Edit Form ── */
           <div className="space-y-4">
             <div>
               <label className="text-sm text-gray-400 mb-1 block">Quest Name</label>
@@ -533,7 +633,16 @@ export default function QuestsPage() {
                 <input
                   type="date"
                   value={form.due_date || ''}
-                  onChange={e => setForm({ ...form, due_date: e.target.value || null })}
+                  onChange={e => {
+                    const val = e.target.value || null;
+                    const update: Partial<typeof form> = { due_date: val };
+                    if (val) {
+                      const d = new Date(val + 'T00:00:00');
+                      update.month = d.getMonth() + 1;
+                      update.year = d.getFullYear();
+                    }
+                    setForm({ ...form, ...update });
+                  }}
                   className={inputClass}
                 />
               </div>
@@ -542,7 +651,7 @@ export default function QuestsPage() {
             <div>
               <label className="text-sm text-gray-400 mb-1 block">Frequency</label>
               <div className="grid grid-cols-2 gap-2">
-                {(Object.entries(FREQ_LABELS) as Array<[keyof typeof FREQ_LABELS, string]>).map(([key, label]) => (
+                {(Object.entries(FREQ_LABELS) as Array<[Quest['frequency'], string]>).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setForm({ ...form, frequency: key })}
@@ -557,6 +666,18 @@ export default function QuestsPage() {
                 ))}
               </div>
             </div>
+
+            {form.frequency === 'partner' && (
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Partner Name</label>
+                <input
+                  value={form.partner_name}
+                  onChange={e => setForm({ ...form, partner_name: e.target.value })}
+                  placeholder="e.g., Alex"
+                  className={inputClass}
+                />
+              </div>
+            )}
 
             <div>
               <label className="text-sm text-gray-400 mb-1 block">Description</label>
@@ -599,13 +720,13 @@ export default function QuestsPage() {
                 <div className="border border-[#2E2E3E] rounded-xl p-3 mb-2 space-y-2">
                   <select
                     value={tempPrereq.type || 'text'}
-                    onChange={e => setTempPrereq({ type: e.target.value as any })}
+                    onChange={e => setTempPrereq({ type: e.target.value as QuestPrerequisite['type'] })}
                     className={inputClass}
                   >
                     <option value="text">Free-text rule</option>
                     <option value="level">Min Level</option>
                     <option value="habit_streak">Habit Streak</option>
-                    <option value="quest_complete">Complete Quest</option>
+                    <option value="quest_complete">Complete a Quest</option>
                   </select>
 
                   {tempPrereq.type === 'text' && (
@@ -620,27 +741,51 @@ export default function QuestsPage() {
                   {tempPrereq.type === 'level' && (
                     <input
                       type="number"
-                      placeholder="Min level"
+                      placeholder="Min level (e.g., 3)"
                       value={tempPrereq.min_level || ''}
                       onChange={e => setTempPrereq({ ...tempPrereq, min_level: parseInt(e.target.value) })}
                       className={inputClass}
                     />
                   )}
                   {tempPrereq.type === 'habit_streak' && (
-                    <input
-                      type="number"
-                      placeholder="Min streak days"
-                      value={tempPrereq.min_streak || ''}
-                      onChange={e => setTempPrereq({ ...tempPrereq, min_streak: parseInt(e.target.value) })}
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Habit name (e.g., Morning Run)"
+                        value={tempPrereq.habit_name || ''}
+                        onChange={e => setTempPrereq({ ...tempPrereq, habit_name: e.target.value })}
+                        className={inputClass}
+                      />
+                      <input
+                        type="number"
+                        placeholder="Min streak days (e.g., 7)"
+                        value={tempPrereq.min_streak || ''}
+                        onChange={e => setTempPrereq({ ...tempPrereq, min_streak: parseInt(e.target.value) })}
+                        className={inputClass}
+                      />
+                    </div>
+                  )}
+                  {tempPrereq.type === 'quest_complete' && (
+                    <select
+                      value={tempPrereq.quest_id || ''}
+                      onChange={e => {
+                        const q = quests.find(q => q.id === e.target.value);
+                        setTempPrereq({ ...tempPrereq, quest_id: e.target.value, quest_name: q?.name || '' });
+                      }}
                       className={inputClass}
-                    />
+                    >
+                      <option value="">Select a quest...</option>
+                      {quests.map(q => (
+                        <option key={q.id} value={q.id}>{q.name}</option>
+                      ))}
+                    </select>
                   )}
 
                   <button
                     onClick={addPrerequisite}
                     className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm transition-colors"
                   >
-                    Add
+                    Add Prerequisite
                   </button>
                 </div>
               )}
@@ -649,9 +794,7 @@ export default function QuestsPage() {
                 <div className="space-y-2">
                   {form.prerequisites.map((prereq, idx) => (
                     <div key={idx} className="flex items-center justify-between bg-[#1E1E2E] border border-[#2E2E3E] rounded-lg p-2">
-                      <span className="text-sm text-gray-300">
-                        {prereq.type === 'text' ? prereq.text : `${prereq.type}: ${prereq.min_level || prereq.min_streak}`}
-                      </span>
+                      <span className="text-sm text-gray-300">{prereqLabel(prereq)}</span>
                       <button
                         onClick={() => removePrerequisite(idx)}
                         className="text-gray-500 hover:text-red-400 transition-colors"
@@ -694,6 +837,7 @@ export default function QuestsPage() {
                 QUEST COMPLETE!
               </h2>
               <p className="text-xl text-gray-300">{selectedQuest?.name}</p>
+              <p className="text-sm text-cyan-400 mt-2">+500 XP bonus awarded!</p>
               <button
                 onClick={() => {
                   setShowComplete(false);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, BookOpen, Search, Filter, Calendar as CalendarIcon, Edit2, X, Trash2, Flame, FileText } from 'lucide-react';
 import { useApp } from '@/components/Providers';
@@ -11,21 +11,6 @@ import { ListSkeleton } from '@/components/LoadingSkeleton';
 import { todayString, getMoodEmoji, getMoodColor, formatDate } from '@/lib/utils';
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, getDay } from 'date-fns';
 import type { JournalEntry, JournalPhoto } from '@/types';
-
-function RichEditor({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
-  const wordCount = value.trim().split(/\s+/).filter(Boolean).length;
-  return (
-    <div className="relative">
-      <textarea
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-4 py-3 bg-[#1E1E2E] border border-[#2E2E3E] rounded-xl text-white focus:outline-none focus:border-purple-500 resize-none min-h-[200px] text-sm leading-relaxed"
-      />
-      <div className="text-xs text-gray-500 mt-1 text-right">{wordCount} words</div>
-    </div>
-  );
-}
 
 const MOODS = [
   { value: 'amazing', emoji: '🤩', label: 'Amazing' },
@@ -74,6 +59,24 @@ Next action:`,
   },
 ];
 
+function RichEditor({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const wordCount = useMemo(() =>
+    value.trim().split(/\s+/).filter(Boolean).length,
+    [value]
+  );
+  return (
+    <div className="relative">
+      <textarea
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-4 py-3 bg-[#1E1E2E] border border-[#2E2E3E] rounded-xl text-white focus:outline-none focus:border-purple-500 resize-none min-h-[200px] text-sm leading-relaxed"
+      />
+      <div className="text-xs text-gray-500 mt-1 text-right">{wordCount} words</div>
+    </div>
+  );
+}
+
 export default function JournalPage() {
   const { awardXP } = useApp();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
@@ -87,6 +90,8 @@ export default function JournalPage() {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [editMode, setEditMode] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -120,56 +125,106 @@ export default function JournalPage() {
   const createEntry = async () => {
     if (!form.title.trim()) return;
     const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-    const res = await fetch('/api/journal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, tags, template_type: form.template_type }),
-    });
-    if (res.ok) {
-      await awardXP('journal_entry');
-      setShowCreate(false);
-      setShowTemplate(false);
-      setForm({
-        date: todayString(),
-        title: '',
-        mood: 'good',
-        content: '',
-        tags: '',
-        template_type: 'free',
+
+    // Optimistically add entry to list
+    const newEntry: JournalEntry = {
+      id: crypto.randomUUID(),
+      user_id: 'default_user',
+      date: form.date,
+      title: form.title,
+      mood: form.mood as any,
+      content: form.content,
+      tags,
+      template_type: form.template_type as any,
+      word_count: form.content.trim().split(/\s+/).filter(Boolean).length,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      photos: [],
+    };
+
+    const previousEntries = entries;
+    setEntries(prev => [newEntry, ...prev]);
+    setShowCreate(false);
+    setShowTemplate(false);
+
+    try {
+      const res = await fetch('/api/journal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, tags, template_type: form.template_type }),
       });
-      await fetchEntries();
+      if (res.ok) {
+        await awardXP('journal_entry');
+        setForm({
+          date: todayString(),
+          title: '',
+          mood: 'good',
+          content: '',
+          tags: '',
+          template_type: 'free',
+        });
+      } else {
+        setEntries(previousEntries);
+      }
+    } catch (error) {
+      setEntries(previousEntries);
+      throw error;
     }
   };
 
   const updateEntry = async () => {
     if (!selectedEntry || !form.title.trim()) return;
     const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-    const res = await fetch('/api/journal', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: selectedEntry.id,
-        title: form.title,
-        mood: form.mood,
-        content: form.content,
-        tags,
-        template_type: form.template_type,
-      }),
-    });
-    if (res.ok) {
+    const previousEntries = entries;
+
+    const optimisticEntry: JournalEntry = {
+      ...selectedEntry,
+      title: form.title,
+      mood: form.mood as any,
+      content: form.content,
+      tags,
+      template_type: form.template_type as any,
+      word_count: form.content.trim().split(/\s+/).filter(Boolean).length,
+      updated_at: new Date().toISOString(),
+    };
+
+    setEntries(prev => prev.map(e => e.id === selectedEntry.id ? optimisticEntry : e));
+    setSelectedEntry(optimisticEntry);
+
+    try {
+      await fetch('/api/journal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedEntry.id,
+          title: form.title,
+          mood: form.mood,
+          content: form.content,
+          tags,
+          template_type: form.template_type,
+        }),
+      });
       setEditMode(false);
-      await fetchEntries();
-      const updated = await (await fetch('/api/journal')).json();
-      const entry = Array.isArray(updated) ? updated.find(e => e.id === selectedEntry.id) : null;
-      setSelectedEntry(entry || null);
+    } catch (error) {
+      setEntries(previousEntries);
+      setSelectedEntry(selectedEntry);
+      throw error;
     }
   };
 
   const deleteEntry = async (id: string) => {
-    if (!confirm('Delete this entry?')) return;
-    await fetch(`/api/journal?id=${id}`, { method: 'DELETE' });
+    const previousEntries = entries;
+    setEntries(prev => prev.filter(e => e.id !== id));
     setSelectedEntry(null);
-    await fetchEntries();
+    setShowDeleteConfirm(false);
+    setDeleteConfirmId(null);
+
+    try {
+      await fetch(`/api/journal?id=${id}`, { method: 'DELETE' });
+    } catch (error) {
+      setEntries(previousEntries);
+      throw error;
+    }
   };
 
   const uploadPhoto = async (file: File) => {
@@ -184,10 +239,13 @@ export default function JournalPage() {
         body: formData,
       });
       if (res.ok) {
-        await fetchEntries();
-        const updated = await (await fetch('/api/journal')).json();
-        const entry = Array.isArray(updated) ? updated.find(e => e.id === selectedEntry.id) : null;
-        setSelectedEntry(entry || null);
+        const photoData: JournalPhoto = await res.json();
+        const updatedEntry = {
+          ...selectedEntry,
+          photos: [...(selectedEntry.photos || []), photoData],
+        };
+        setEntries(prev => prev.map(e => e.id === selectedEntry.id ? updatedEntry : e));
+        setSelectedEntry(updatedEntry);
       }
     } finally {
       setPhotoUploading(false);
@@ -195,17 +253,27 @@ export default function JournalPage() {
   };
 
   const deletePhoto = async (photoId: string) => {
-    const res = await fetch(`/api/journal/photos?id=${photoId}`, { method: 'DELETE' });
-    if (res.ok) {
-      await fetchEntries();
-      const updated = await (await fetch('/api/journal')).json();
-      const entry = Array.isArray(updated) ? updated.find(e => e.id === selectedEntry?.id) : null;
-      setSelectedEntry(entry || null);
+    if (!selectedEntry) return;
+    const previousEntry = selectedEntry;
+    const updatedEntry = {
+      ...selectedEntry,
+      photos: (selectedEntry.photos || []).filter(p => p.id !== photoId),
+    };
+
+    setEntries(prev => prev.map(e => e.id === selectedEntry.id ? updatedEntry : e));
+    setSelectedEntry(updatedEntry);
+
+    try {
+      await fetch(`/api/journal/photos?id=${photoId}`, { method: 'DELETE' });
+    } catch (error) {
+      setSelectedEntry(previousEntry);
+      setEntries(prev => prev.map(e => e.id === selectedEntry.id ? previousEntry : e));
+      throw error;
     }
   };
 
-  // Calculate stats
-  const journalingStreak = (() => {
+  // Calculate stats with memoization
+  const journalingStreak = useMemo(() => {
     if (entries.length === 0) return 0;
     let streak = 0;
     let checkDate = new Date(todayString());
@@ -217,25 +285,40 @@ export default function JournalPage() {
       checkDate.setDate(checkDate.getDate() - 1);
     }
     return streak;
-  })();
+  }, [entries]);
 
-  const thisMonth = new Date().getMonth();
-  const thisYear = new Date().getFullYear();
-  const entriesThisMonth = entries.filter(e => {
-    const d = new Date(e.date);
-    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
-  });
-  const totalWordsThisMonth = entriesThisMonth.reduce((sum, e) => sum + (e.word_count || 0), 0);
+  const { entriesThisMonth, totalWordsThisMonth } = useMemo(() => {
+    const thisMonth = new Date().getMonth();
+    const thisYear = new Date().getFullYear();
+    const filtered = entries.filter(e => {
+      const d = new Date(e.date);
+      return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+    });
+    return {
+      entriesThisMonth: filtered,
+      totalWordsThisMonth: filtered.reduce((sum, e) => sum + (e.word_count || 0), 0),
+    };
+  }, [entries]);
 
-  // Calendar view data
+  // Calendar view data with memoized date lookup map
   const monthStart = startOfMonth(calendarMonth);
   const monthEnd = endOfMonth(calendarMonth);
   const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const startDayOfWeek = getDay(monthStart);
 
-  const getEntriesForDate = (dateStr: string) => {
-    return entries.filter(e => e.date === dateStr);
-  };
+  const entriesByDate = useMemo(() => {
+    const map = new Map<string, JournalEntry[]>();
+    entries.forEach(e => {
+      const key = e.date;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    });
+    return map;
+  }, [entries]);
+
+  const getEntriesForDate = useCallback((dateStr: string) => {
+    return entriesByDate.get(dateStr) || [];
+  }, [entriesByDate]);
 
   if (loading) return <ListSkeleton rows={5} />;
 
@@ -523,7 +606,10 @@ export default function JournalPage() {
                 <Edit2 size={16} /> Edit
               </button>
               <button
-                onClick={() => deleteEntry(selectedEntry.id)}
+                onClick={() => {
+                  setShowDeleteConfirm(true);
+                  setDeleteConfirmId(selectedEntry.id);
+                }}
                 className="px-4 py-2 bg-red-900 hover:bg-red-800 rounded-xl text-white text-sm transition-colors"
               >
                 <Trash2 size={16} />
@@ -601,6 +687,40 @@ export default function JournalPage() {
             </button>
           </div>
         )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeleteConfirmId(null);
+        }}
+        title="Delete Entry?"
+        maxWidth="max-w-sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-300">Are you sure you want to delete this journal entry? This action cannot be undone.</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setDeleteConfirmId(null);
+              }}
+              className="flex-1 px-4 py-2.5 bg-[#1E1E2E] rounded-xl text-white font-medium hover:bg-[#2E2E3E] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (deleteConfirmId) deleteEntry(deleteConfirmId);
+              }}
+              className="flex-1 px-4 py-2.5 bg-red-600 rounded-xl text-white font-medium hover:bg-red-500 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]); }} />

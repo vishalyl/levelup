@@ -9,6 +9,7 @@ import Modal from '@/components/Modal';
 import EmptyState from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/LoadingSkeleton';
 import { todayString } from '@/lib/utils';
+import { calculateStreak, getHeatmapData } from '@/lib/streaks';
 import { format, subDays, eachDayOfInterval, differenceInDays, parseISO } from 'date-fns';
 import type { Habit, HabitLog, Task } from '@/types';
 
@@ -181,27 +182,6 @@ export default function HabitsPage() {
     }
   };
 
-  const getHeatmapData = (habitId: string) => {
-    const logDates = new Set(allLogs.filter(l => l.habit_id === habitId).map(l => l.completed_date));
-    return eachDayOfInterval({ start: subDays(new Date(), 364), end: new Date() }).map(day => ({
-      date: format(day, 'yyyy-MM-dd'),
-      done: logDates.has(format(day, 'yyyy-MM-dd')),
-    }));
-  };
-
-  const getStreak = (habitId: string) => {
-    const logs = allLogs.filter(l => l.habit_id === habitId).map(l => l.completed_date).sort().reverse();
-    if (!logs.length) return 0;
-    let streak = 0;
-    let checkDate = new Date();
-    for (let i = 0; i < 365; i++) {
-      const dateStr = format(checkDate, 'yyyy-MM-dd');
-      if (logs.includes(dateStr)) { streak++; checkDate = subDays(checkDate, 1); }
-      else if (i === 0) { checkDate = subDays(checkDate, 1); }
-      else break;
-    }
-    return streak;
-  };
 
   const activeHabits = habits.filter(h => !h.is_archived);
   const archivedHabits = habits.filter(h => h.is_archived);
@@ -258,8 +238,8 @@ export default function HabitsPage() {
               <div className="space-y-3">
                 {activeHabits.map(habit => {
                   const done = todayLogs.some(l => l.habit_id === habit.id);
-                  const streak = getStreak(habit.id);
-                  const heatmap = expandedHeatmap === habit.id ? getHeatmapData(habit.id) : null;
+                  const streak = calculateStreak(habit.id, allLogs);
+                  const heatmap = expandedHeatmap === habit.id ? getHeatmapData(habit.id, allLogs) : null;
                   return (
                     <motion.div key={habit.id} layout className="bg-[#12121A] border border-[#1E1E2E] rounded-xl overflow-hidden card-hover">
                       <div className="flex items-center gap-4 p-4">

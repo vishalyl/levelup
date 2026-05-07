@@ -117,6 +117,7 @@ export interface Quest {
   status: 'active' | 'completed' | 'abandoned';
   frequency: 'one-time' | 'weekly' | 'monthly' | 'partner';
   due_date: string | null;
+  partner_name: string | null;
   prerequisites: QuestPrerequisite[];
   completed_at: string | null;
   updated_at: string;
@@ -166,30 +167,6 @@ export interface ProgressPhoto {
   created_at: string;
 }
 
-export interface Win {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string | null;
-  category: 'Fitness' | 'Mental' | 'Career' | 'Social' | 'Personal';
-  date: string;
-  importance: number;
-  created_at: string;
-}
-
-export interface BucketListItem {
-  id: string;
-  user_id: string;
-  title: string;
-  category: 'Travel' | 'Experience' | 'Skill' | 'Achievement' | 'Other';
-  description: string | null;
-  target_date: string | null;
-  priority: 'low' | 'medium' | 'high';
-  completed_at: string | null;
-  completion_notes: string | null;
-  completion_photo_path: string | null;
-  created_at: string;
-}
 
 export interface XPEvent {
   id: string;

@@ -20,7 +20,6 @@ export async function GET() {
       .from('todo_items')
       .select('*')
       .eq('user_id', userId)
-      .is('completed_at', null)
       .order('sort_order', { ascending: true });
 
     if (itemsError) throw itemsError;
@@ -135,6 +134,16 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = getServiceSupabase();
+
+    const { data: list, error: listError } = await supabase
+      .from('todo_lists')
+      .select('user_id')
+      .eq('id', listId)
+      .single();
+
+    if (listError || !list || list.user_id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
 
     const { error } = await supabase
       .from('todo_lists')

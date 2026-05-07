@@ -97,6 +97,16 @@ export async function DELETE(
 
     const supabase = getServiceSupabase();
 
+    const { data: item, error: itemError } = await supabase
+      .from('todo_items')
+      .select('user_id')
+      .eq('id', id)
+      .single();
+
+    if (itemError || !item || item.user_id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
     const { error } = await supabase
       .from('todo_items')
       .delete()

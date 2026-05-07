@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Zap, Trophy, Flame, Calendar, TrendingUp, Star, Bell,
+  Zap, Flame, Calendar, TrendingUp, Star, Bell, Award,
 } from 'lucide-react';
 import { useApp } from '@/components/Providers';
 import StatBar from '@/components/StatBar';
@@ -13,59 +13,67 @@ import GoalsSection from '@/components/GoalsSection';
 import UpcomingItems from '@/components/UpcomingItems';
 import { getGreeting, formatDate, todayString, getMoodEmoji } from '@/lib/utils';
 import { getXPLabel } from '@/lib/xp';
-import { format } from 'date-fns';
-import type { CharacterStats, Habit, HabitLog, Quest, JournalEntry, Win, Task } from '@/types';
+import { calculateStreak, getRecentHeatmapData, getWeekStart } from '@/lib/streaks';
+import { BADGE_DEFINITIONS, getBadgeDisplay } from '@/lib/badges';
+import { format, subDays } from 'date-fns';
+import type { CharacterStats, Habit, HabitLog, Quest, JournalEntry, Task, Badge } from '@/types';
 
 export default function DashboardPage() {
   const { user, userLoading, progress, recentEvents } = useApp();
   const [stats, setStats] = useState<CharacterStats>({ str: 0, vit: 0, int: 0, wil: 0, agi: 0 });
   const [habits, setHabits] = useState<Habit[]>([]);
   const [todayLogs, setTodayLogs] = useState<HabitLog[]>([]);
+  const [thirtyDayLogs, setThirtyDayLogs] = useState<HabitLog[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
-  const [wins, setWins] = useState<Win[]>([]);
   const [onThisDay, setOnThisDay] = useState<JournalEntry[]>([]);
   const [dueTasks, setDueTasks] = useState<Task[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const { awardXP } = useApp();
 
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, habitsRes, logsRes, questsRes, winsRes, journalRes, tasksRes] = await Promise.all([
+        const today = todayString();
+        const thirtyDaysAgo = format(subDays(new Date(), 29), 'yyyy-MM-dd');
+        const [statsRes, habitsRes, todayLogsRes, thirtyDayLogsRes, questsRes, journalRes, tasksRes, badgesRes] = await Promise.all([
           fetch('/api/stats'),
           fetch('/api/habits'),
-          fetch(`/api/habits/log?start_date=${todayString()}&end_date=${todayString()}`),
+          fetch(`/api/habits/log?start_date=${today}&end_date=${today}`),
+          fetch(`/api/habits/log?start_date=${thirtyDaysAgo}&end_date=${today}`),
           fetch('/api/quests'),
-          fetch('/api/wins'),
           fetch('/api/journal'),
           fetch('/api/tasks'),
+          fetch('/api/badges'),
         ]);
 
         const statsData = await statsRes.json();
         const allHabits = await habitsRes.json();
-        const logsData = await logsRes.json();
+        const todayLogsData = await todayLogsRes.json();
+        const thirtyDayLogsData = await thirtyDayLogsRes.json();
         const questsData = await questsRes.json();
-        const winsData = await winsRes.json();
         const entriesData = await journalRes.json();
         const tasksData = await tasksRes.json();
+        const badgesData = await badgesRes.json();
 
         setStats(!Array.isArray(statsData) ? statsData : { str: 0, vit: 0, int: 0, wil: 0, agi: 0 });
         setHabits(Array.isArray(allHabits) ? allHabits.filter((h: Habit) => !h.is_archived) : []);
-        setTodayLogs(Array.isArray(logsData) ? logsData : []);
+        setTodayLogs(Array.isArray(todayLogsData) ? todayLogsData : []);
+        setThirtyDayLogs(Array.isArray(thirtyDayLogsData) ? thirtyDayLogsData : []);
         setQuests(Array.isArray(questsData) ? questsData : []);
-        setWins(Array.isArray(winsData) ? winsData : []);
+        setBadges(Array.isArray(badgesData) ? badgesData : []);
 
         // On this day entries
         const entries: JournalEntry[] = Array.isArray(entriesData) ? entriesData : [];
-        const today = format(new Date(), 'MM-dd');
+        const todayStr = format(new Date(), 'MM-dd');
         const thisYear = format(new Date(), 'yyyy');
         setOnThisDay(entries.filter(e => {
           const entryDate = format(new Date(e.date), 'MM-dd');
           const entryYear = format(new Date(e.date), 'yyyy');
-          return entryDate === today && entryYear !== thisYear;
+          return entryDate === todayStr && entryYear !== thisYear;
         }));
         const allTasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
-        setDueTasks(allTasks.filter(t => t.next_due_at <= todayString()));
+        setDueTasks(allTasks.filter(t => t.next_due_at <= today));
       } catch (err) {
         console.error('Dashboard load error:', err);
       } finally {
@@ -101,11 +109,26 @@ export default function DashboardPage() {
     ? (activeQuest.milestones.filter(m => m.completed_at).length / activeQuest.milestones.length) * 100
     : 0;
 
-  // Streak calculation (simplified for dashboard)
+  // Streak calculation using 30-day logs
   const habitStreaks = habits.map(h => {
-    const logs = todayLogs.filter(l => l.habit_id === h.id);
-    return { habit: h, streak: logs.length > 0 ? 1 : 0 };
-  }).sort((a, b) => b.streak - a.streak).slice(0, 3);
+    const streak = calculateStreak(h.id, thirtyDayLogs);
+    return { habit: h, streak };
+  }).filter(hs => hs.streak > 0).sort((a, b) => b.streak - a.streak);
+
+  // Weekly stats
+  const weekStart = getWeekStart();
+  const weekLogs = thirtyDayLogs.filter(l => l.completed_date >= weekStart);
+  const weekHabitsCompleted = new Set(weekLogs.map(l => l.habit_id)).size;
+  const weekXP = recentEvents.filter(e => {
+    const eDate = format(new Date(e.created_at), 'yyyy-MM-dd');
+    return eDate >= weekStart;
+  }).reduce((sum, e) => sum + e.amount, 0);
+
+  // Unlocked badges for display
+  const badgeKeys = new Set(badges.map(b => b.badge_key));
+  const unlockedBadges = BADGE_DEFINITIONS.filter(bd => badgeKeys.has(bd.key))
+    .map(bd => ({ ...bd, unlockedAt: badges.find(b => b.badge_key === bd.key)?.unlocked_at }));
+  const lockedBadges = BADGE_DEFINITIONS.filter(bd => !badgeKeys.has(bd.key));
 
   if (loading || userLoading) {
     return (
@@ -187,8 +210,8 @@ export default function DashboardPage() {
             {habits.length === 0 ? (
               <p className="text-gray-500 text-sm">No habits yet. Create one in the Habits tab!</p>
             ) : (
-              <div className="space-y-2">
-                {habits.slice(0, 6).map(habit => {
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {habits.map(habit => {
                   const done = todayLogs.some(l => l.habit_id === habit.id);
                   return (
                     <button
@@ -281,18 +304,33 @@ export default function DashboardPage() {
             {habitStreaks.length === 0 ? (
               <p className="text-gray-500 text-sm">Complete habits to build streaks!</p>
             ) : (
-              <div className="space-y-3">
-                {habitStreaks.map(({ habit }) => (
-                  <div key={habit.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span>{habit.emoji}</span>
-                      <span className="text-gray-300 text-sm">{habit.name}</span>
+              <div className="space-y-4">
+                {habitStreaks.map(({ habit, streak }) => {
+                  const heatmap = getRecentHeatmapData(habit.id, thirtyDayLogs, 30);
+                  return (
+                    <div key={habit.id}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span>{habit.emoji}</span>
+                          <span className="text-gray-300 text-sm">{habit.name}</span>
+                        </div>
+                        <span className="text-orange-400 font-semibold text-sm flex items-center gap-1">
+                          <Flame className="w-3 h-3" /> {streak}d
+                        </span>
+                      </div>
+                      <div className="flex gap-[2px]">
+                        {heatmap.map(day => (
+                          <div
+                            key={day.date}
+                            className="w-[8px] h-[8px] rounded-[2px]"
+                            style={{ backgroundColor: day.done ? habit.color : '#1E1E2E', opacity: day.done ? 1 : 0.4 }}
+                            title={`${day.date}: ${day.done ? 'Done' : 'Missed'}`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <span className="text-orange-400 font-semibold text-sm flex items-center gap-1">
-                      <Flame className="w-3 h-3" /> Active
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -346,26 +384,66 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Wins + Body Summary */}
-          <div className="space-y-4">
-            <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover">
-              <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-yellow-400" />
-                Total Wins
-              </h3>
-              <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-400">
-                {wins.length}
-              </p>
+          {/* Weekly Summary */}
+          <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover md:col-span-2">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-green-400" />
+              This Week
+            </h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">XP Earned</p>
+                <p className="text-2xl font-bold text-cyan-400">{weekXP}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Habits Done</p>
+                <p className="text-2xl font-bold text-green-400">{weekHabitsCompleted}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Active Quests</p>
+                <p className="text-2xl font-bold text-yellow-400">{quests.filter(q => q.status === 'active').length}</p>
+              </div>
             </div>
-            <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover">
-              <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-green-400" />
-                Total XP
-              </h3>
-              <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
-                {progress.totalXP.toLocaleString()}
-              </p>
-            </div>
+          </div>
+
+          {/* Badges Section */}
+          <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover md:col-span-2">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Award className="w-5 h-5 text-yellow-400" />
+              Badges ({unlockedBadges.length})
+            </h3>
+            {unlockedBadges.length === 0 ? (
+              <p className="text-gray-500 text-sm">No badges yet. Keep playing to unlock them!</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {unlockedBadges.map(badge => {
+                  const display = getBadgeDisplay(badge, true);
+                  return (
+                    <motion.div
+                      key={badge.key}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="flex flex-col items-center p-3 rounded-lg bg-[#1E1E2E]/50 border border-yellow-500/30 hover:border-yellow-500/60 transition-colors cursor-help"
+                      title={display.description}
+                    >
+                      <span className="text-2xl mb-1">{display.icon}</span>
+                      <span className="text-xs text-center text-gray-300 font-medium">{display.name}</span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* XP Summary */}
+          <div className="bg-[#12121A] border border-[#1E1E2E] rounded-xl p-6 card-hover">
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-green-400" />
+              Total XP
+            </h3>
+            <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
+              {progress.totalXP.toLocaleString()}
+            </p>
           </div>
         </div>
       </div>

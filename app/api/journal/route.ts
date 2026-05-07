@@ -101,6 +101,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const userId = await getUserId();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const supabase = getServiceSupabase();
@@ -108,7 +109,8 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase
       .from('journal_entries')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) throw error;
     return NextResponse.json({ success: true });

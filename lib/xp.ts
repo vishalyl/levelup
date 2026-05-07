@@ -5,6 +5,7 @@ export const XP_VALUES = {
   JOURNAL_ENTRY: 20,
   PROGRESS_PHOTO: 25,
   QUEST_MILESTONE: 150,
+  QUEST_COMPLETE: 500,
   MEASUREMENT_LOGGED: 10,
   WINS_ENTRY: 20,
   BUCKET_LIST_DONE: 100,
@@ -26,6 +27,7 @@ export type XPReason =
   | 'journal_entry'
   | 'progress_photo'
   | 'quest_milestone'
+  | 'quest_complete'
   | 'measurement_logged'
   | 'wins_entry'
   | 'bucket_list_done'
@@ -47,6 +49,7 @@ export function getXPAmount(reason: XPReason): number {
     journal_entry: XP_VALUES.JOURNAL_ENTRY,
     progress_photo: XP_VALUES.PROGRESS_PHOTO,
     quest_milestone: XP_VALUES.QUEST_MILESTONE,
+    quest_complete: XP_VALUES.QUEST_COMPLETE,
     measurement_logged: XP_VALUES.MEASUREMENT_LOGGED,
     wins_entry: XP_VALUES.WINS_ENTRY,
     bucket_list_done: XP_VALUES.BUCKET_LIST_DONE,
@@ -71,6 +74,7 @@ export function getXPLabel(reason: string): string {
     journal_entry: 'Journal Entry',
     progress_photo: 'Progress Photo',
     quest_milestone: 'Quest Milestone',
+    quest_complete: 'Quest Complete!',
     measurement_logged: 'Measurement Logged',
     wins_entry: 'Win Logged',
     bucket_list_done: 'Bucket List Item',

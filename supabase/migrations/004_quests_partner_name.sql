@@ -1,0 +1,1 @@
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS partner_name TEXT;

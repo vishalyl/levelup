@@ -1,20 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase';
 import { getUserId } from '@/lib/auth';
+import { getLevelFromXP } from '@/lib/levels';
+import type { QuestPrerequisite } from '@/types';
 
 export async function GET() {
   try {
     const userId = await getUserId();
     const supabase = getServiceSupabase();
 
-    const { data, error } = await supabase
-      .from('quests')
-      .select('*, milestones:quest_milestones(*)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const [questsResult, xpResult] = await Promise.all([
+      supabase
+        .from('quests')
+        .select('*, milestones:quest_milestones(*)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('xp_events')
+        .select('amount')
+        .eq('user_id', userId),
+    ]);
 
-    if (error) throw error;
-    return NextResponse.json(data || []);
+    if (questsResult.error) throw questsResult.error;
+
+    const totalXP = (xpResult.data || []).reduce((sum, e) => sum + e.amount, 0);
+    const userLevel = getLevelFromXP(totalXP);
+    const completedQuestIds = new Set(
+      (questsResult.data || [])
+        .filter(q => q.status === 'completed')
+        .map(q => q.id)
+    );
+
+    const quests = (questsResult.data || []).map(quest => ({
+      ...quest,
+      prerequisites: (quest.prerequisites || []).map((prereq: QuestPrerequisite) => {
+        let fulfilled = false;
+        if (prereq.type === 'level') {
+          fulfilled = userLevel >= (prereq.min_level || 1);
+        } else if (prereq.type === 'quest_complete') {
+          fulfilled = prereq.quest_id ? completedQuestIds.has(prereq.quest_id) : false;
+        }
+        // text and habit_streak remain unfulfilled until manually checked
+        return { ...prereq, fulfilled };
+      }),
+    }));
+
+    return NextResponse.json(quests);
   } catch (error) {
     console.error('Error fetching quests:', error);
     return NextResponse.json({ error: 'Failed to fetch quests' }, { status: 500 });
@@ -39,6 +70,7 @@ export async function POST(request: NextRequest) {
         frequency: body.frequency || 'one-time',
         due_date: body.due_date || null,
         prerequisites: body.prerequisites || [],
+        partner_name: body.partner_name || null,
       })
       .select('*, milestones:quest_milestones(*)')
       .single();
@@ -62,6 +94,8 @@ export async function PUT(request: NextRequest) {
       updateData.status = body.status;
       if (body.status === 'completed') {
         updateData.completed_at = new Date().toISOString();
+      } else if (body.status === 'active') {
+        updateData.completed_at = null;
       }
     }
 
@@ -71,6 +105,7 @@ export async function PUT(request: NextRequest) {
     if (body.frequency !== undefined) updateData.frequency = body.frequency;
     if (body.due_date !== undefined) updateData.due_date = body.due_date;
     if (body.prerequisites !== undefined) updateData.prerequisites = body.prerequisites;
+    if (body.partner_name !== undefined) updateData.partner_name = body.partner_name || null;
 
     updateData.updated_at = new Date().toISOString();
 

@@ -55,3 +55,17 @@ export function calculateBMI(weightKg: number, heightCm: number): number {
 export function todayString(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
+
+export function cmToIn(cm: number): number {
+  return Math.round((cm / 2.54) * 10) / 10;
+}
+
+export function inToCm(inches: number): number {
+  return Math.round(inches * 2.54 * 10) / 10;
+}
+
+export function formatMeasurementValue(valueCm: number, bodyPart: string, unit: 'cm' | 'in'): string {
+  if (bodyPart === 'body_fat') return `${valueCm}%`;
+  if (bodyPart === 'weight') return `${valueCm} kg`;
+  return unit === 'in' ? `${cmToIn(valueCm)} in` : `${valueCm} cm`;
+}

@@ -10,10 +10,6 @@ import {
   Heart,
   Target,
   BookOpen,
-  Camera,
-  Trophy,
-  MapPin,
-  User,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -32,10 +28,6 @@ const navItems = [
   { href: '/body', label: 'Body & Health', icon: Heart },
   { href: '/quests', label: 'Quests', icon: Target },
   { href: '/journal', label: 'Journal', icon: BookOpen },
-  { href: '/photos', label: 'Photos', icon: Camera },
-  { href: '/wins', label: 'Wins Board', icon: Trophy },
-  { href: '/bucket', label: 'Bucket List', icon: MapPin },
-  { href: '/character', label: 'Character', icon: User },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
