@@ -325,7 +325,7 @@ export default function TodoPage() {
                   key={color}
                   onClick={() => setNewListColor(color)}
                   className={`w-7 h-7 rounded-full transition-all ${newListColor === color ? 'ring-2 ring-offset-2' : ''}`}
-                  style={{ backgroundColor: color, ringOffsetColor: '#0A0A0F' }}
+                  style={{ backgroundColor: color, '--tw-ring-offset-color': '#0A0A0F' } as React.CSSProperties}
                   whileHover={{ scale: 1.15 }}
                 />
               ))}
